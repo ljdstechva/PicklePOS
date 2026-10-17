@@ -1,0 +1,102 @@
+/* PicklePOS - app updates.
+   The launcher (launcher/PicklePOS.ps1, started by Start POS.bat) checks GitHub in the background,
+   downloads a new version and writes update-status.js next to index.html. This file reads that
+   status, shows a "Restart to update" bar, and talks back to the launcher through the window title
+   ("[pp:check]" = check now, "[pp:restart]" = close and reopen the app, installing the update). */
+(function (POS) {
+  'use strict';
+  const U = POS.util;
+  POS.version = window.POS_VERSION || '0.0.0';
+  let status = null, fastUntil = 0, lastPoll = 0, hiddenFor = '';
+
+  // true if version a is newer than b ("1.10.0" > "1.9.2")
+  POS.newerVersion = function (a, b) {
+    const x = String(a || '').split('.'), y = String(b || '').split('.');
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const d = (parseInt(x[i], 10) || 0) - (parseInt(y[i], 10) || 0);
+      if (d) return d > 0;
+    }
+    return false;
+  };
+
+  function poll() {
+    lastPoll = Date.now();
+    const old = document.getElementById('upd-status');
+    if (old) old.remove();
+    window.POS_UPDATE = null;
+    const sc = document.createElement('script');
+    sc.id = 'upd-status';
+    sc.src = 'update-status.js?t=' + Date.now();
+    sc.onload = () => { status = window.POS_UPDATE || null; changed(); };
+    sc.onerror = () => { status = null; changed(); };
+    document.head.appendChild(sc);
+  }
+  setTimeout(poll, 2500);
+  setInterval(() => { if (Date.now() - lastPoll > (Date.now() < fastUntil ? 3000 : 60000)) poll(); }, 1000);
+
+  const isReady = () => !!(status && status.state === 'ready' && POS.newerVersion(status.version, POS.version));
+
+  POS.updateInfo = function () {
+    const st = status;
+    if (!st || !st.launcher) {
+      return { cls: '', launcher: false, html: 'Automatic updates work when PicklePOS is opened with <b>Start POS.bat</b> (the desktop shortcut).' };
+    }
+    const when = st.checkedAt ? ' &middot; checked ' + U.fmtDT(st.checkedAt) : '';
+    if (isReady()) {
+      return { cls: 'ready', launcher: true, ready: true, html: '<b>Version ' + U.esc(st.version) + ' is downloaded and ready.</b> Restart PicklePOS to finish updating.' +
+        (st.notes ? '<br><span class="small">What’s new: ' + U.esc(st.notes) + '</span>' : '') };
+    }
+    if (st.state === 'idle') return { cls: '', launcher: true, html: 'PicklePOS will check for updates in a moment (when there is internet).' };
+    if (st.state === 'checking') return { cls: '', launcher: true, html: 'Checking for updates...' };
+    if (st.state === 'downloading') return { cls: '', launcher: true, html: 'Downloading version ' + U.esc(st.version || '') + '...' };
+    if (st.state === 'offline') return { cls: 'warn', launcher: true, html: 'No internet right now. PicklePOS will check again later' + when + '.' };
+    if (st.state === 'error') return { cls: 'warn', launcher: true, html: 'Could not check for updates: ' + U.esc(st.message || 'unknown error') + when + '.' };
+    return { cls: 'ok', launcher: true, html: 'PicklePOS is up to date' + when + '.' };
+  };
+
+  function changed() {
+    const v = POS.views && POS.state.view === 'settings' && POS.views.settings;
+    if (v && v.refresh) v.refresh();
+    let bar = document.getElementById('upd-bar');
+    if (!isReady() || hiddenFor === status.version) { if (bar) bar.remove(); return; }
+    if (bar) return;
+    bar = U.h('<div id="upd-bar" class="upd-bar"><span class="upd-ico">&#8679;</span><span>PicklePOS <b>' + U.esc(status.version) +
+      '</b> is ready. Restart to finish updating.</span><button class="btn sm primary" data-a="go">Restart Now</button>' +
+      '<button class="btn sm" data-a="later">Later</button></div>');
+    U.$('[data-a=go]', bar).onclick = () => POS.restartForUpdate();
+    U.$('[data-a=later]', bar).onclick = () => { hiddenFor = status.version; bar.remove(); };
+    document.body.appendChild(bar);
+  }
+
+  // Briefly put a signal in the window title; the launcher watches the title of the app window
+  function signal(code, ms) {
+    const base = document.title.replace(/ \[pp:\w+\]$/, '');
+    document.title = base + ' [pp:' + code + ']';
+    if (ms) setTimeout(() => { document.title = base; }, ms);
+  }
+
+  POS.checkUpdates = function () {
+    fastUntil = Date.now() + 120000;
+    signal('check', 5000);
+  };
+
+  POS.restartForUpdate = async function () {
+    if (POS.cart && POS.cart.lines.length && POS.cartDirty) {
+      return U.toast('Finish or save the current order first, then restart.', 'error');
+    }
+    if (!(await U.confirm('Restart PicklePOS now to install version ' + (status ? status.version : '') + '? It takes a few seconds. Your data is kept.', 'Restart Now'))) return;
+    document.body.appendChild(U.h('<div class="restarting"><span class="logo-ball"></span><b>Updating PicklePOS...</b><span>The app will open again by itself.</span></div>'));
+    signal('restart');
+    // If no launcher reacts (app opened another way), explain what to do
+    setTimeout(() => {
+      const r = document.querySelector('.restarting');
+      if (r) r.remove();
+      document.title = document.title.replace(/ \[pp:\w+\]$/, '');
+      U.modal({
+        title: 'Please restart PicklePOS', cls: 'small',
+        body: '<p>Close this window, then open PicklePOS again with the <b>desktop shortcut</b> (Start POS.bat). The update is installed while it opens.</p>',
+        buttons: [{ label: 'OK', cls: 'primary' }]
+      });
+    }, 12000);
+  };
+})(window.POS);

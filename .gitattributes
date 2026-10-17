@@ -1,0 +1,4 @@
+# Keep Windows line endings exactly as they are (batch files need CRLF)
+*.bat -text
+*.txt -text
+*.ps1 -text

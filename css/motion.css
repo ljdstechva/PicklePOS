@@ -1,0 +1,166 @@
+/* =====================================================================
+   PicklePOS - motion & polish
+   Only transform/opacity are animated so old laptops stay smooth.
+   Settings > Display & Sounds can switch all of it off (html.no-anim).
+   ===================================================================== */
+:root { --ease: cubic-bezier(.2,.8,.2,1); --spring: cubic-bezier(.34,1.56,.64,1); }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { to { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: translateY(10px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes popOut { to { opacity: 0; transform: scale(.97); } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+@keyframes slideOut { to { opacity: 0; transform: translateX(40px); } }
+@keyframes toastOut { to { opacity: 0; transform: translateY(10px) scale(.97); } }
+@keyframes bump { 0% { transform: scale(1); } 35% { transform: scale(1.2); } 100% { transform: scale(1); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+@keyframes shadowPulse { 0%, 100% { transform: scaleX(1); opacity: .35; } 50% { transform: scaleX(.55); opacity: .15; } }
+@keyframes drawCheck { to { stroke-dashoffset: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes growX { from { transform: scaleX(0); } }
+@keyframes rally { 0%, 100% { left: 8%; transform: translateY(0); } 25%, 75% { transform: translateY(-20px); } 50% { left: 86%; transform: translateY(0); } }
+
+/* screens & dialogs */
+.view-enter { animation: fadeUp .24s var(--ease) backwards; }
+.modal-back { animation: fadeIn .16s ease-out backwards; }
+.modal-back .modal { animation: popIn .2s var(--ease) backwards; }
+.modal-back.closing { animation: fadeOut .14s ease-in forwards; pointer-events: none; }
+.modal-back.closing .modal { animation: popOut .14s ease-in forwards; }
+
+/* toasts (with optional Undo button) */
+.toast { display: flex; align-items: center; gap: 14px; animation: popIn .26s var(--spring) backwards; }
+.toast.out { animation: toastOut .25s ease-in forwards; }
+.toast.has-action { pointer-events: auto; }
+.toast-btn { background: none; border: 0; color: var(--accent); font-weight: 800; cursor: pointer; padding: 2px 4px; text-transform: uppercase; font-size: 13px; letter-spacing: .04em; }
+
+/* buttons */
+.btn { transition: background-color .12s, border-color .12s, box-shadow .15s, transform .08s; }
+.btn.busy { color: transparent !important; position: relative; pointer-events: none; }
+.btn.busy::after { content: ""; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2.5px solid rgba(255,255,255,.55); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+.btn.busy:not(.primary):not(.danger)::after { border-color: rgba(0,0,0,.15); border-top-color: var(--brand); }
+kbd { font: 700 11px/1 Consolas, "Courier New", monospace; padding: 2px 5px; border-radius: 4px; border: 1px solid #c9d2cb; background: #f6f8f6; color: var(--muted); }
+.count { display: inline-block; background: var(--brand); color: #fff; border-radius: 10px; padding: 0 7px; font-size: 12px; line-height: 18px; }
+.seg button { transition: background-color .15s, border-color .15s, box-shadow .15s; }
+
+/* navigation (side bar) */
+.nav button, .rail-lock { transition: color .15s, background-color .15s, box-shadow .2s, transform .1s; }
+.nav button:active, .rail-lock:active { transform: scale(.94); }
+.nav button.on .ico { animation: bump .3s var(--spring); }
+.ico { width: 18px; height: 18px; flex: none; }
+
+/* login */
+.login-card { animation: popIn .35s var(--ease) backwards; }
+.login-card > .logo-ball { animation: float 2.4s ease-in-out 2; }
+.user-btn { animation: fadeUp .3s var(--ease) backwards; animation-delay: calc(.08s + var(--i, 0) * 50ms); transition: border-color .15s, background-color .15s, transform .1s; }
+.user-btn:active, .pinpad button:active { transform: scale(.96); }
+.pinpad button { transition: background-color .12s, transform .08s; }
+.pin-dots i { transition: background-color .12s; }
+.pin-dots i.last { animation: bump .22s var(--spring); }
+
+/* splash while loading */
+.splash { margin: auto; text-align: center; color: var(--muted); font-weight: 600; }
+.splash .logo-ball { width: 46px; height: 46px; margin: 0 auto; animation: bounce .7s ease-in-out infinite; }
+.splash .shadow { width: 40px; height: 6px; margin: 4px auto 14px; background: rgba(0,0,0,.25); border-radius: 50%; animation: shadowPulse .7s ease-in-out infinite; }
+
+/* sell: search, tiles, fly-to-cart */
+.search-wrap { position: relative; }
+.search-wrap .search { padding-left: 40px; padding-right: 38px; min-height: 44px; border-radius: 22px; }
+.search-ico { position: absolute; left: 14px; top: 50%; width: 18px; height: 18px; margin-top: -9px; color: var(--muted); pointer-events: none; }
+.search-x { position: absolute; right: 8px; top: 50%; margin-top: -14px; width: 28px; height: 28px; border: 0; border-radius: 50%; background: #e7ebe8; cursor: pointer; font-size: 18px; line-height: 1; color: var(--muted); }
+.search-x:hover { background: #dce2dd; color: var(--ink); }
+.cat { transition: background-color .18s, color .18s, box-shadow .18s, border-color .15s, transform .1s; }
+.cat:active { transform: scale(.95); }
+.cat-ic { transition: background-color .18s, color .18s; }
+.cats.anim .cat { animation: fadeUp .26s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 30ms); }
+.tile { transition: transform .14s var(--ease), box-shadow .14s, border-color .14s; }
+.tile:hover { transform: translateY(-3px); }
+.t-add { transition: background-color .15s, color .15s, transform .15s var(--spring); }
+.tile:hover .t-add { transform: rotate(90deg); }
+.tile:active { transform: scale(.96); transition-duration: .06s; }
+.tile.shake { animation: shake .35s; }
+.grid.anim .tile { animation: fadeUp .28s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 16ms); }
+.ph img { transition: transform .3s var(--ease); }
+.tile:hover .ph img { transform: scale(1.05); }
+.in-cart { position: absolute; top: 7px; left: 7px; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px; background: var(--brand); color: #fff; font-weight: 800; font-size: 13px; line-height: 22px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.3); border: 2px solid #fff; animation: popIn .22s var(--spring) backwards; }
+.bump { animation: bump .32s var(--spring); }
+.fly { position: fixed; z-index: 70; pointer-events: none; border-radius: 12px; overflow: hidden; box-shadow: 0 6px 18px rgba(0,0,0,.25); transition: transform .45s cubic-bezier(.55,0,.8,.6), opacity .45s ease-in; will-change: transform; }
+.fly img, .fly .ph-ph { width: 100%; height: 100%; object-fit: cover; display: flex; }
+
+/* cart */
+.line { transition: background-color .2s; }
+.line:hover { background: var(--soft); }
+.line.court:hover { background: #ecf6ef; }
+.line.new { animation: slideIn .24s var(--ease) backwards, flash 1.1s ease-out; }
+.line.removing { animation: slideOut .17s ease-in forwards; }
+.qty span { display: inline-block; }
+.sum-row.total span:last-child, .pay-btn span { display: inline-block; }
+.cart-empty, .big-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 48px; }
+.cart-empty b, .big-empty b { color: var(--ink); font-size: 16px; }
+.logo-ball.float { width: 56px; height: 56px; margin: 0 0 6px; animation: float 3s ease-in-out 3; }
+.cart-actions .btn.on { border-color: var(--danger); color: var(--danger); background: #fff6f5; }
+.pay-btn { position: relative; }
+.pay-btn:not(:disabled) { box-shadow: 0 6px 16px rgba(23,138,74,.34); }
+.pay-btn:not(:disabled):hover { box-shadow: 0 8px 22px rgba(23,138,74,.44); }
+.pay-btn kbd { position: absolute; right: 12px; top: 50%; margin-top: -9px; background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); color: #e6f3ea; }
+
+/* payment complete */
+.check { width: 78px; height: 78px; display: block; margin: 0 auto 10px; }
+.check circle { fill: var(--ok); transform-box: fill-box; transform-origin: center; animation: popIn .35s var(--spring) backwards; }
+.check path { fill: none; stroke: #fff; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: drawCheck .35s .22s var(--ease) forwards; }
+.methods .btn.on { box-shadow: 0 3px 10px rgba(29,107,64,.3); }
+
+/* courts */
+.court-card { transition: border-color .3s, background-color .3s; }
+.court-card.enter { animation: popIn .3s var(--ease) backwards; }
+.court-card + .court-card.enter { animation-delay: .06s; }
+.pill { display: inline-flex; align-items: center; gap: 6px; }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.live-dot, .live { animation: pulse 1.4s ease-in-out infinite; }
+.cc-meta { margin-bottom: 8px; }
+.cc-prog { height: 8px; background: #edf0ed; border-radius: 4px; overflow: hidden; margin: 2px 0 6px; }
+.cc-prog i { display: block; height: 100%; background: var(--brand); transform-origin: left; transition: transform .9s linear, background-color .3s; border-radius: 4px; }
+.cc-prog.warn i { background: var(--warn); }
+.cc-next { font-size: 13px; color: var(--muted); margin-bottom: 12px; font-weight: 600; }
+.court-art { position: relative; height: 74px; margin: 14px 0 18px; border-radius: 12px; background: #2f8f57; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.court-art::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; margin-left: -1.5px; background: rgba(255,255,255,.9); }
+.court-art::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 2px; margin-top: -1px; background: rgba(255,255,255,.5); }
+.court-art span { position: absolute; z-index: 1; top: 50%; left: 8%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.35); animation: rally 2.6s ease-in-out 3; }
+
+/* tabs */
+.tab-card { transition: transform .14s var(--ease), box-shadow .14s, border-color .14s; }
+.tab-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hi); }
+.tab-card.playing { border-left: 4px solid var(--danger); }
+#tb-list.anim .tab-card { animation: fadeUp .3s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
+
+/* tables, menu rows */
+.tbl tr.click td { transition: background-color .12s; }
+.item-row { transition: border-color .14s, box-shadow .14s; }
+.item-row:hover { box-shadow: var(--shadow-hi); }
+
+/* reports */
+.stat { animation: fadeUp .3s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+.split { margin-bottom: 14px; padding: 12px 14px; }
+.split-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #edf0ed; }
+.split-bar i { display: block; height: 100%; transform-origin: left; animation: growX .6s var(--ease) backwards; }
+.split-bar .court { animation-delay: .15s; }
+.split .cafe { background: #b5651d; }
+.split .court { background: var(--brand); }
+.split-legend { display: flex; gap: 18px; margin-top: 8px; font-weight: 600; font-size: 14px; }
+.split-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+
+/* on/off switches */
+.switch { position: relative; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .sw { width: 40px; height: 22px; border-radius: 11px; background: #cdd5cf; position: relative; flex: none; transition: background-color .2s; }
+.switch .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s var(--spring); }
+.switch input:checked + .sw { background: var(--brand); }
+.switch input:checked + .sw::after { transform: translateX(18px); }
+.switch input:focus + .sw { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.login-clock .c-date { display: inline; }
+
+/* Animations switched off (setting, or Windows "reduce motion") */
+.no-anim *, .no-anim *::before, .no-anim *::after { animation: none !important; transition: none !important; }
+.no-anim .check path { stroke-dashoffset: 0; }

@@ -1,0 +1,9 @@
+# Sales data and the browser profile stay on the laptop - never upload them
+data/
+test-data/
+# Update work folder and status written by the launcher
+updates/
+update-status.js
+update-status.js.tmp
+# Test tool output
+.playwright-mcp/

@@ -1,0 +1,279 @@
+=====================================================================
+  PicklePOS  -  Point of Sale for Pickleball Courts & Cafe
+  Setup guide for the cafe laptop + POS-5890U-L 58mm receipt printer
+=====================================================================
+
+WHAT YOU NEED
+  - The PicklePOS folder (this folder)
+  - Google Chrome (best) or Microsoft Edge on the laptop
+  - The POS-5890U-L thermal printer, its USB cable and power adapter
+  - No internet is needed after setup. Everything runs on the laptop.
+
+
+---------------------------------------------------------------------
+STEP 1 - Copy the app to the laptop
+---------------------------------------------------------------------
+  1. Copy the whole "PicklePOS" folder to the laptop, for example to
+     C:\PicklePOS   (any location is fine; don't use a USB stick).
+     You don't need to copy the "test-data" folder; it only holds
+     practice data from "Test POS.bat".
+     Or download it fresh from GitHub:
+       https://github.com/ljdstechva/PicklePOS
+       (green "Code" button > Download ZIP). Right-click the zip >
+       Properties > tick "Unblock" > OK, then extract it.
+  2. Right-click "Start POS.bat" > Send to > Desktop (create shortcut).
+     Rename the desktop shortcut to "PicklePOS".
+
+
+---------------------------------------------------------------------
+STEP 2 - Make sure Chrome is installed
+---------------------------------------------------------------------
+  - Windows 10/11: install Google Chrome from google.com/chrome
+    (Edge also works if Chrome isn't installed.)
+  - Windows 7/8: the last Chrome version for Windows 7 is 109, and it
+    still works with PicklePOS.
+  - To check your Windows version: press the Windows key + R, type
+    winver and press Enter.
+
+
+---------------------------------------------------------------------
+STEP 3 - Install the receipt printer
+---------------------------------------------------------------------
+  1. Plug the printer's power adapter in, load the 58mm paper roll
+     (shiny side facing the print head), and turn the printer ON.
+  2. Connect the USB cable to the laptop.
+  3. On the laptop, open  www.cnfujun.com/d/50  and download the
+     printer driver (from the printer's manual). Run the installer
+     and click "Next". The printer must be ON and plugged in, or
+     the installer cannot finish.
+  4. Open Windows Settings > Devices (or Bluetooth & devices) >
+     Printers & scanners. You should see a printer named like
+     "POS-58" or "POS58 Printer".
+       - Click it > "Set as default".
+       - Windows 10/11: also turn OFF "Let Windows manage my
+         default printer".
+  5. Click the printer > Printing preferences (or Printer properties
+     > Preferences > Advanced) and set Paper Size to the 58mm roll
+     size, e.g. "58mm x 3276mm" or "58(48) x 210mm".
+  6. Print a Windows test page to confirm the printer works.
+
+  Using Bluetooth instead of USB (optional; USB is more reliable):
+    - Turn the printer on, open Windows Bluetooth settings, add the
+      device (PIN is usually 0000 or 1234).
+    - Open Devices and Printers > right-click POS-58 > Printer
+      properties > Ports > tick the "Standard Serial over Bluetooth
+      link" COM port > Apply.
+
+
+---------------------------------------------------------------------
+STEP 4 - Open PicklePOS
+---------------------------------------------------------------------
+  1. Double-click the "PicklePOS" desktop shortcut (Start POS.bat).
+     The app opens in its own full window.
+     ALWAYS open the app this way. Opening index.html directly will
+     show an empty app, because your data lives in the "data" folder
+     that only the shortcut uses. Start POS.bat also turns on silent
+     printing, so receipts print without a dialog box.
+  2. First time only (2 short steps):
+       Step 1: business name, business logo (it becomes the app icon
+               and is printed on receipts), owner name and owner PIN.
+               Keep the sample menu if you want to try things out.
+       Step 2: add your employees - a name and PIN for each, and what
+               they may use. "Standard" = take orders, open tabs,
+               Kitchen screen and Stock. You can skip this and add
+               employees later in Settings > Staff & PINs.
+  3. Go to Settings and fill in:
+       - Business & Receipt: address, contact no., TIN
+       - Courts & Rates: court names, price per hour, billing rules
+  4. Settings > Printer > "Print Test Receipt".
+       - Text too small or too big?  Change "Font size".
+       - Paper cut too close?  Increase "Blank space after".
+       - A print dialog pops up?  Close ALL PicklePOS windows and
+         open it again with the shortcut.
+       - Prints on the wrong printer?  Set POS-58 as the default
+         printer (Step 3.4).
+
+
+---------------------------------------------------------------------
+STEP 5 - Add your menu with photos
+---------------------------------------------------------------------
+  Menu > + Add Item
+    - Choose Photo: any phone photo works. It is shrunk to a small
+      size automatically so the laptop stays fast.
+    - Tick "Send to the kitchen" for items the kitchen/barista
+      prepares (coffee, food). Leave it off for bottled drinks etc.
+    - Tick "Out of stock right now" if you don't have it today.
+    - Untick "Show on the Sell screen" to hide an item without
+      deleting it (e.g. out of season).
+  Categories: add, rename and reorder them on the left.
+  Each item has an In stock / Out of stock switch (no counting).
+
+
+---------------------------------------------------------------------
+DAILY USE
+---------------------------------------------------------------------
+  CAFE ORDER, PAY NOW
+    Sell > tap items > Pay > choose Cash / GCash / Maya / Bank >
+    enter amount > Complete Sale. The receipt prints, and the food and
+    drinks to prepare appear on the Kitchen screen. Type the
+    customer's name in the Payment window so the kitchen can call it.
+
+  OPEN TAB (order now, pay later)
+    Tap items > "To Kitchen" (sends the order to the Kitchen screen
+    and saves the tab) or "Save Tab" (saves without sending). Find it
+    later under "Tabs" and press Pay.
+
+  KITCHEN SCREEN (the "Kitchen" button in the left side bar)
+    The printer only prints customer receipts. Orders to prepare are
+    shown as cards on the Kitchen screen instead:
+      NEW       -> press "Start Preparing"
+      PREPARING -> tap each item when it's done (it gets a tick),
+                   then press "Ready"
+      READY     -> appears on the right; press "Served" once it's
+                   handed over ("<-" moves it back if pressed early)
+    - The waiting time turns orange after 10 minutes and red after 20.
+    - ADD-ON = extra items added to a tab that was already sent.
+    - Items removed from an order, or a voided order, show in red as
+      CANCELLED. Don't prepare them; press "OK, Remove".
+    - "Recently Served" lists today's served orders; "Recall" puts one
+      back on the board.
+    - The number on the Kitchen button = orders still to prepare.
+    Prefer paper? Settings > Printer > Kitchen orders can be set to
+    print a kitchen slip, or both screen and slip.
+
+  OUT OF STOCK
+    Stock (left side bar) > tap the item. It turns red, shows
+    "Out of stock" on the Sell screen and cannot be ordered. Tap it
+    again when it is back. "All Back in Stock" resets everything.
+    Menu > Stock History shows who changed what. Reports > "Out of
+    Stock List" prints a list for restocking.
+
+  COURT RENTAL
+    Courts > "Start Timer" when players start, or "Book Hours" for a
+    fixed reservation. Press "Stop Timer" when they finish; the court
+    fee goes onto their tab together with any food and drinks, and
+    "Take Payment Now" collects it all at once.
+    Billing rules (Settings > Courts): e.g. minimum 60 min, then
+    every 30 min, with 5 min grace. The Courts page shows the rule.
+    Forgot to start the timer? Change the start time in the Start
+    Timer window, or ask the owner to edit it (the 3-dot button).
+
+  SENIOR CITIZEN / PWD DISCOUNT
+    Discount > Senior Citizen or PWD > enter total guests, how many
+    are Senior/PWD, the name and the ID number. The discount is 20%
+    of their share. The receipt shows the ID and a signature line.
+
+  SPLIT PAYMENT
+    In the Payment window, enter part of the amount (e.g. GCash 500)
+    > "Add Partial Payment", then pay the rest by another method.
+
+  VOIDS & REFUNDS
+    History > click the sale > Void Sale (needs the owner PIN,
+    unless the owner allowed that employee to void).
+
+  END OF DAY
+    Reports > "Close Day & Backup". This prints the Z-Reading and
+    saves a backup file to the Downloads folder. Count the cash
+    drawer and write it on the Z-Reading.
+
+
+---------------------------------------------------------------------
+BACKUPS - PLEASE READ
+---------------------------------------------------------------------
+  All data (sales, menu, photos, settings) is stored on this laptop
+  in  PicklePOS\data\ . If the laptop breaks, the data is gone,
+  unless you have a backup.
+    - A backup file is saved to Downloads every time you use
+      "Close Day & Backup" (or Settings > Download Backup).
+      A yellow "Backup due" button appears if you skip a day.
+    - Once a week, copy the newest PicklePOS-backup-....json file
+      to a USB drive, Google Drive or Messenger (send it to yourself).
+    - New laptop: copy the PicklePOS folder, open it, finish the
+      first setup, then Settings > Restore from Backup.
+  Do NOT delete the "data" folder, and do not run Chrome's "Clear
+  browsing data" inside the PicklePOS window.
+
+
+---------------------------------------------------------------------
+ABOUT RECEIPTS & BIR
+---------------------------------------------------------------------
+  PicklePOS is not a BIR-accredited CAS/POS. Its printouts are
+  "Acknowledgement Receipts - Not an Official Receipt" for the
+  customer's reference. Keep issuing BIR-registered invoices/receipts
+  from your booklet when required. You can change the wording in
+  Settings > Business & Receipt.
+
+
+---------------------------------------------------------------------
+HANDY EXTRAS
+---------------------------------------------------------------------
+  Keyboard shortcuts (Sell screen):
+    F2 = search    Enter = add the first search result
+    F4 = court time    F8 = save tab    F9 = pay
+    Enter = confirm a window    Esc = close it
+  Removed an item by mistake? Press UNDO on the message at the bottom.
+  The small number on a dish photo shows how many are in the order.
+  Courts screen: the bar under the timer shows when the next court
+  charge starts. Booked courts warn (with a beep) 5 minutes before the
+  end and when time is up.
+  Settings > Display & Sounds:
+    - Animations on/off (turn off if the laptop feels slow)
+    - Sounds on/off
+    - Auto-lock after 5-30 minutes of no use. Locking keeps the
+      current order on screen.
+
+
+---------------------------------------------------------------------
+STAFF & ACCESS
+---------------------------------------------------------------------
+  Owner:    everything.
+  Employee: only what the owner ticks in Settings > Staff & PINs >
+            Edit. "Standard" = Take orders, Open tabs, Kitchen screen,
+            Stock. Other screens: Courts, Sales history, Reports,
+            Menu, Settings.
+  Extra permissions (otherwise they ask for the owner PIN): void
+  sales & tabs, custom discounts, change/remove court time, change
+  prices on an order.
+  Staff accounts and backups are always owner-only.
+  Press "Lock" (your initials, bottom left) when leaving the counter.
+
+
+---------------------------------------------------------------------
+AUTOMATIC UPDATES
+---------------------------------------------------------------------
+  When the laptop has internet, PicklePOS checks GitHub for a new
+  version (a few seconds after opening, then every 3 hours) and
+  downloads it quietly in the background.
+    - A dark bar appears: "PicklePOS x.y.z is ready". Press
+      "Restart Now" (finish the current order first) - the window
+      closes and opens again with the new version. Or press "Later";
+      it installs the next time PicklePOS is opened.
+    - Your sales, menu, photos and settings are kept (the "data"
+      folder is never changed by an update).
+    - Settings > About & Updates shows the version and lets the
+      owner "Check for Updates Now".
+    - Updates only work when PicklePOS is opened with the shortcut
+      (Start POS.bat). Details are logged in updates\update-log.txt.
+    - The previous version is kept in updates\previous.
+
+
+---------------------------------------------------------------------
+TROUBLESHOOTING
+---------------------------------------------------------------------
+  Nothing prints     - Is the printer ON, with paper and the USB in?
+                       Is POS-58 the default printer? Try a Windows
+                       test page first.
+  Faint print        - Thermal paper is loaded upside down (flip it),
+                       or the paper is old.
+  App looks empty    - You opened index.html directly. Close it and
+                       use the PicklePOS shortcut.
+  Forgot owner PIN   - If another owner account exists, log in with it
+                       and reset the PIN in Settings > Staff & PINs.
+                       Tip: write the owner PIN down somewhere safe,
+                       or create a second owner account.
+  No updates         - Is there internet? Windows 7 needs .NET 4.5 or
+                       newer for secure downloads from GitHub. See
+                       updates\update-log.txt.
+  Slow laptop        - Close other programs. PicklePOS uses very
+                       little memory; Chrome tabs and videos use much
+                       more.

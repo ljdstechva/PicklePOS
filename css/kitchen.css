@@ -1,0 +1,81 @@
+/* PicklePOS - Kitchen screen (large text, readable from a few steps away) */
+.k-counts { display: flex; gap: 8px; margin-right: 6px; }
+.k-count { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 20px; background: #fff; box-shadow: var(--shadow); font-weight: 700; color: var(--muted); font-size: 12.5px; }
+.k-count b { font-size: 19px; color: var(--ink); }
+.k-count.new b { color: #2f6fb0; }
+.k-count.preparing b { color: #c27c00; }
+.k-count.ready b { color: var(--ok); }
+.notice { background: #fff4d6; border: 1px solid #f0d58a; color: #5c4300; padding: 11px 16px; border-radius: 14px; margin-bottom: 14px; font-weight: 600; }
+
+.k-board { display: grid; grid-template-columns: 1fr 330px; gap: 18px; align-items: start; }
+.k-h { margin: 0 0 12px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.k-h .small { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
+.k-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+.k-ready-col .k-cards { grid-template-columns: 1fr; }
+.k-ready-col { background: #e3f2e8; border-radius: 22px; padding: 14px; min-height: 200px; }
+.k-none { margin: 30px 0; text-align: center; }
+.k-empty { grid-column: 1 / -1; padding: 50px 20px; }
+
+.k-card { background: #fff; border: 0; border-top: 6px solid #2f6fb0; border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+.k-card.preparing { border-top-color: #e0a100; }
+.k-card.ready { border-top-color: var(--ok); }
+.k-card.cancelled { border-top-color: var(--danger); background: #fff6f5; }
+.k-top { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px 0; }
+.k-no { font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+.k-status { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; padding: 4px 10px; border-radius: 10px; background: #e3edf8; color: #2f6fb0; }
+.preparing .k-status { background: #fff1c4; color: #8a5a00; }
+.ready .k-status { background: var(--brand-l); color: var(--brand); }
+.cancelled .k-status { background: var(--danger); color: #fff; }
+.k-name { padding: 2px 16px 0; font-size: 18px; font-weight: 700; }
+.k-tag { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .05em; padding: 2px 7px; border-radius: 6px; background: var(--soft); color: var(--muted); vertical-align: middle; }
+.k-tag.paid { background: var(--brand-l); color: var(--brand); }
+.k-time { padding: 2px 16px 0; font-size: 13px; color: var(--muted); }
+.k-age { font-variant-numeric: tabular-nums; color: var(--ink); }
+.k-card.warn { border-top-color: #e07b00; }
+.k-card.warn .k-age { color: #c25e00; }
+.k-card.late { border-top-color: var(--danger); }
+.k-card.late .k-age { color: #fff; background: var(--danger); padding: 0 6px; border-radius: 4px; }
+.k-cancel { margin: 8px 16px 0; padding: 7px 12px; background: var(--danger); color: #fff; border-radius: 10px; font-weight: 800; font-size: 14px; }
+
+.k-items { list-style: none; margin: 10px 0 12px; padding: 0; }
+.k-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 16px; border-top: 1px dashed var(--line); cursor: pointer; font-size: 19px; font-weight: 700; line-height: 1.25; user-select: none; transition: background-color .15s; }
+.k-item:hover { background: var(--soft); }
+.ready .k-item, .cancelled .k-item { cursor: default; }
+.k-q { min-width: 38px; color: var(--brand-d); font-weight: 800; }
+.k-n { flex: 1; min-width: 0; }
+.k-note { display: block; font-size: 15px; font-weight: 700; color: #b0530d; font-style: italic; margin-top: 1px; }
+.k-tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #c9d2cb; flex: none; display: flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; transition: background-color .15s, border-color .15s; }
+.k-item.k-done .k-tick { background: var(--ok); border-color: var(--ok); }
+.k-item.k-done .k-q, .k-item.k-done .k-n { color: #9aa59e; text-decoration: line-through; }
+.k-item.k-done .k-note { color: #b9c1bb; }
+.k-item.cancelled .k-q, .k-item.cancelled .k-n { color: var(--danger); text-decoration: line-through; }
+.k-item.cancelled .k-tick, .cancelled .k-tick { visibility: hidden; }
+.k-cx { display: inline-block; font-size: 11px; font-weight: 800; background: var(--danger); color: #fff; padding: 1px 6px; border-radius: 4px; vertical-align: middle; font-style: normal; }
+.k-actions { display: flex; gap: 8px; padding: 0 16px 16px; }
+.k-actions .btn { flex: 1; }
+.k-actions .btn[data-a=back] { flex: none; width: 56px; }
+.k-ready-col .k-item { font-size: 16px; padding: 6px 16px; }
+.k-ready-col .k-tick { display: none; }
+.ready .k-item.k-done .k-q, .ready .k-item.k-done .k-n { color: var(--ink); text-decoration: none; }
+.ready .k-item.k-done .k-note { color: #b0530d; }
+
+/* motion */
+.k-card { transition: border-color .3s; }
+.k-card.fresh { animation: popIn .4s var(--spring) backwards; }
+.k-card.leaving { animation: popOut .18s ease-in forwards; }
+.k-card.all-done .k-ready-btn { animation: readyGlow 1.4s ease-in-out infinite; }
+@keyframes readyGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(31,138,76,.0); } 50% { box-shadow: 0 0 0 5px rgba(31,138,76,.25); } }
+.badge.hot { background: #ffb547; color: #3d2400; }
+
+/* kitchen status on Tabs + sale complete */
+.tc-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.k-chip { font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 10px; background: #e3edf8; color: #2f6fb0; white-space: nowrap; margin-bottom: 4px; }
+.k-chip.preparing { background: #fff1c4; color: #8a5a00; }
+.k-chip.ready { background: var(--ok); color: #fff; animation: pulse 1.4s ease-in-out infinite; }
+.sent-kitchen { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 12px; border-radius: 16px; background: #fff1c4; color: #6b4d00; font-weight: 700; font-size: 13px; }
+.p-name { margin-top: 14px; }
+
+@media (max-width: 1100px) {
+  .k-board { grid-template-columns: 1fr; }
+  .k-ready-col .k-cards { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+}
