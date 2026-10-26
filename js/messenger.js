@@ -1,12 +1,12 @@
-/* PicklePOS - Facebook Messenger at the counter.
-   The "Messenger" button in the side bar opens the inbox as a floating panel (its own window, no
-   address bar, docked at the bottom right, opened by the launcher inside the POS browser profile) and
-   shows how many chats are unread, so bookings and payments sent through Messenger are not missed.
-   Press the button again to bring the panel back, or to tuck it away when it is in front.
-   The unread number comes from:
-     1. A Facebook Page access token (Settings > Messenger): exact unread count from the Graph API.
-     2. Otherwise the launcher watches the Messenger window's title (Facebook puts "(3)" in front of it
-        when 3 chats are unread) and writes messenger-status.js next to index.html. */
+/* PicklePOS - Facebook Messenger as a tab inside the POS.
+   Facebook does not allow messenger.com to be shown inside another page, so the Messenger tab works
+   like this: the tab's content area is filled by a real messenger.com window (desktop layout, chats on
+   the left, conversation on the right) that the launcher opens in its own browser profile and snaps
+   exactly over the tab's area. It follows the POS window, stays only while the POS or the panel is in
+   front, and goes away when another tab is chosen. The nav badge shows how many chats are unread:
+     1. from a Facebook Page access token (Settings > Messenger), exact count via the Graph API, or
+     2. from the Messenger window's title, which Facebook prefixes with "(3)" when 3 chats are unread
+        (the launcher writes it to messenger-status.js next to index.html). */
 (function (POS) {
   'use strict';
   const U = POS.util;
@@ -15,31 +15,62 @@
   M.DEFAULT_URL = 'https://www.messenger.com/';
   let graph = { count: null, error: '', at: 0 };
   let win = null, shown = -1, lastGraph = 0, lastWin = 0;
+  let el = null, dockTimer = null;
 
   M.url = () => (((POS.state.settings && POS.state.settings.msgUrl) || M.DEFAULT_URL) + '').trim();
   const launcher = () => !!(POS.launcherPresent && POS.launcherPresent() && POS.signalLauncher);
+  const stale = () => !!(POS.launcherStale && POS.launcherStale());
 
-  // Opens the floating panel, brings it back, or tucks it away (the launcher does the window work).
-  // Without the launcher (app opened without Start POS.bat) a plain browser window is used instead.
-  M.open = function () {
-    if (launcher()) {
-      if (POS.launcherStale && POS.launcherStale()) {
-        return U.toast('One more step after the update: close PicklePOS and open it again from the desktop shortcut, then press Messenger.', 'warn');
-      }
-      POS.signalLauncher('msg:' + encodeURIComponent(M.url()), 3000);
+  // "Open Messenger" from anywhere = go to the tab
+  M.open = function () { POS.go('messenger'); };
+
+  /* ---- the tab: tell the launcher where to put the messenger.com window ---- */
+  // Screen rectangle (device pixels) of the tab's content area
+  function contentRect() {
+    const main = document.getElementById('main');
+    if (!main) return null;
+    const r = main.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const frameX = Math.max(0, (window.outerWidth - window.innerWidth) / 2);   // window border
+    const frameY = Math.max(0, window.outerHeight - window.innerHeight);       // title bar + border
+    return {
+      x: Math.round((window.screenX + frameX + r.left) * dpr), y: Math.round((window.screenY + frameY + r.top) * dpr),
+      w: Math.round(r.width * dpr), h: Math.round(r.height * dpr), dpr: Math.round(dpr * 100)
+    };
+  }
+  function dock() {
+    if (!el || !launcher() || stale()) return;
+    const r = contentRect();
+    if (!r || r.w < 50 || r.h < 50) return;
+    POS.signalLauncher('msgdock:' + [r.x, r.y, r.w, r.h, r.dpr].join(',') + ':' + encodeURIComponent(M.url()), 2500);
+  }
+  function undock() { if (launcher()) POS.signalLauncher('msghide', 2500); }
+  const onResize = () => { clearTimeout(dockTimer); dockTimer = setTimeout(dock, 250); };
+
+  POS.views.messenger = {
+    render: function (root) {
       const st = M.state();
-      U.toast(st.open ? 'Messenger panel tucked away. Press again to bring it back.' : 'Opening Messenger...', '');
-      return;
+      let body;
+      if (!launcher()) body = '<p>Messenger shows here when PicklePOS is opened with <b>Start POS.bat</b> (the desktop shortcut).</p>';
+      else if (stale()) body = '<p>One more step after the update: <b>close PicklePOS and open it again from the desktop shortcut</b>, then come back to this tab.</p>';
+      else body = '<p>Loading your Messenger inbox...</p><p class="muted small">First time: log in once in the panel that appears here. It stays signed in afterwards.</p>';
+      el = U.h('<div class="page msg-page"><div class="msg-hint">' + POS.icon('messenger') + '<h2>Messenger</h2>' + body +
+        (st.count > 0 ? '<p><b>' + st.count + '</b> unread chat' + (st.count > 1 ? 's' : '') + '</p>' : '') +
+        '<p class="muted small">Inbox: ' + U.esc(M.url()) + ' &middot; change it in Settings &rarr; Messenger</p></div></div>');
+      root.appendChild(el);
+      window.addEventListener('resize', onResize);
+      setTimeout(dock, 60);                  // after layout
+      dockTimer = setTimeout(dock, 2500);    // again, in case the panel was still opening
+    },
+    destroy: function () {
+      window.removeEventListener('resize', onResize);
+      clearTimeout(dockTimer);
+      el = null;
+      undock();
     }
-    try {
-      const w = window.open(M.url(), 'pp-messenger');
-      if (w && w.focus) w.focus();
-      if (!w) U.toast('Chrome blocked the Messenger window. Allow pop-ups for PicklePOS and try again.', 'error');
-    } catch (e) { U.toast('Could not open Messenger: ' + (e.message || e), 'error'); }
   };
 
-  // Unread chats and where the number comes from: 'page' (token), 'window' (title) or 'none';
-  // open = the floating panel is on screen (not minimized)
+  /* ---- unread count ---- */
   M.state = function () {
     const s = POS.state.settings;
     const fresh = !!(win && Date.now() - (win.at || 0) < 90000);
@@ -64,7 +95,6 @@
     const me = await graphGet('me?fields=id,name', token);
     return { id: me.id, name: me.name, chats: await M.unreadChats(token) };
   };
-
   async function pollGraph() {
     const s = POS.state.settings;
     if (!s || !s.msgToken) { graph = { count: null, error: '', at: 0 }; return; }
@@ -72,7 +102,6 @@
     try { graph = { count: await M.unreadChats(s.msgToken), error: '', at: Date.now() }; }
     catch (e) { graph = { count: graph.count, error: e.message || String(e), at: Date.now() }; }
   }
-
   // messenger-status.js is rewritten by the launcher every few seconds
   function pollWin() {
     const old = document.getElementById('msg-status');
@@ -86,18 +115,10 @@
     document.head.appendChild(sc);
   }
 
-  // Badge and highlight on the side-bar button; a sound and a message when new chats arrive
+  // Badge on the Messenger tab; a sound and a message when new chats arrive
   M.sync = function () {
     const st = M.state();
-    const btn = document.getElementById('msg-btn');
     const b = document.getElementById('msg-badge');
-    if (btn) {
-      btn.classList.toggle('on', st.open);
-      btn.title = st.open ? 'Messenger panel is open. Press to tuck it away.' :
-        st.source === 'page' ? ('Facebook Page inbox' + (st.error ? ' - ' + st.error : '')) :
-        st.source === 'window' ? 'Press to bring the Messenger panel back' :
-        'Open Messenger as a floating panel. Log in there once; it remembers you.';
-    }
     if (b) {
       b.textContent = st.count > 0 ? String(st.count) : (st.source === 'page' && st.error ? '!' : '');
       b.style.display = b.textContent ? '' : 'none';
@@ -105,7 +126,7 @@
     const n = (st.count === null || st.count === undefined) ? -1 : +st.count;
     if (n > 0 && shown >= 0 && n > shown) {
       POS.sound('ding');
-      U.toast('Messenger: ' + n + ' unread chat' + (n > 1 ? 's' : ''), 'warn');
+      if (POS.state.view !== 'messenger') U.toast('Messenger: ' + n + ' unread chat' + (n > 1 ? 's' : ''), 'warn');
     }
     if (n >= 0) shown = n;
     const v = POS.views && POS.state.view === 'settings' && POS.views.settings;

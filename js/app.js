@@ -4,7 +4,7 @@
   const U = POS.util;
   const S = POS.state = { settings: null, users: [], categories: [], items: [], open: [], user: null, view: null };
   POS.views = {};
-  POS.VIEW_ORDER = ['sell', 'kitchen', 'tabs', 'courts', 'stock', 'history', 'reports', 'menu', 'settings'];
+  POS.VIEW_ORDER = ['sell', 'kitchen', 'tabs', 'courts', 'messenger', 'stock', 'history', 'reports', 'menu', 'settings'];
 
   POS.DEFAULTS = {
     bizName: 'My Pickleball Club', bizLine2: 'Courts & Cafe', address: '', contact: '', tin: '',
@@ -26,8 +26,10 @@
   /* ---------- display: animations & sounds ---------- */
   const reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   POS.anim = () => !!(S.settings && S.settings.anim !== false) && !(reduceMotion && reduceMotion.matches);
+  // no-anim: no animations/transitions. lite: also no shadows or blur (much less to paint on an old laptop)
   POS.applyDisplay = function () {
     document.documentElement.classList.toggle('no-anim', !POS.anim());
+    document.documentElement.classList.toggle('lite', !POS.anim());
   };
 
   // Short synthesized beeps (no sound files needed). Very quiet by default.
@@ -93,6 +95,7 @@
     }
     POS.applyDisplay();
     POS.applyBrand();
+    if (S.liteJustSet) setTimeout(() => U.toast('Animations and shadows are off so the POS stays quick on this laptop. Settings > Display & Sounds to change.', 'warn'), 1500);
     if (reduceMotion && reduceMotion.addListener) reduceMotion.addListener(POS.applyDisplay);
     setInterval(POS.tick, 1000);
     document.addEventListener('click', POS.touch, true);
@@ -105,6 +108,12 @@
     S.settings = Object.assign({}, POS.DEFAULTS, kv ? kv.v : {});
     // Receipts no longer carry the "THIS IS NOT AN OFFICIAL RECEIPT" note (since 1.2.0)
     if (S.settings.receiptNote === 'THIS IS NOT AN OFFICIAL RECEIPT') { S.settings.receiptNote = ''; await POS.saveSettings(); }
+    // Once: on a 1-2 core laptop start with animations and shadows off (lighter, quicker). Settings can turn them on.
+    if (!S.settings.liteChecked) {
+      S.settings.liteChecked = true;
+      if ((navigator.hardwareConcurrency || 4) <= 2 && S.settings.anim !== false) { S.settings.anim = false; S.liteJustSet = true; }
+      await POS.saveSettings();
+    }
     S.users = await POS.db.all('users');
     S.categories = (await POS.db.all('categories')).sort((a, b) => a.sort - b.sort);
     S.items = await POS.db.all('items');
@@ -372,7 +381,7 @@
 
   /* ---------- shell & navigation ---------- */
   const VIEW_LABELS = {
-    sell: 'Sell', kitchen: 'Kitchen', tabs: 'Tabs', courts: 'Courts', history: 'History',
+    sell: 'Sell', kitchen: 'Kitchen', tabs: 'Tabs', courts: 'Courts', messenger: 'Messenger', history: 'History',
     stock: 'Stock', reports: 'Reports', menu: 'Menu', settings: 'Settings'
   };
 
@@ -383,15 +392,14 @@
       '<nav class="nav">' + views.map((v) => '<button data-view="' + v + '">' + POS.icon(v) + '<span class="nav-l">' + VIEW_LABELS[v] + '</span>' +
         (v === 'tabs' ? '<span class="badge" id="tabs-badge"></span>' : '') +
         (v === 'kitchen' ? '<span class="badge hot" id="kitchen-badge"></span>' : '') +
-        (v === 'courts' ? '<span class="badge" id="courts-badge"></span>' : '') + '</button>').join('') +
-      '<button id="msg-btn" title="Messenger">' + POS.icon('messenger') + '<span class="nav-l">Messenger</span><span class="badge hot" id="msg-badge" style="display:none"></span></button></nav>' +
+        (v === 'courts' ? '<span class="badge" id="courts-badge"></span>' : '') +
+        (v === 'messenger' ? '<span class="badge hot" id="msg-badge" style="display:none"></span>' : '') + '</button>').join('') + '</nav>' +
       '<div class="rail-foot"><button class="btn sm warn hidden" id="backup-warn" title="Download a backup copy of your data">Backup due</button>' +
-      '<button class="btn sm hidden" id="upd-btn" title="Check GitHub for a newer PicklePOS and install it">Update</button>' +
+      '<button class="btn sm hidden" id="upd-btn" title="Check for a newer PicklePOS and install it">Update</button>' +
       '<span class="clock"></span><button class="rail-lock" id="lock" title="' + U.esc(S.user.name) + ' - press to lock the POS">' +
       '<span class="avatar" style="background:' + U.colorFor(S.user.name) + '">' + U.esc(U.initials(S.user.name)) + '</span>' +
       '<span>' + POS.icon('lock') + ' Lock</span></button></div></aside><main class="main" id="main"></main>';
     U.$$('.nav button[data-view]', app).forEach((b) => { b.onclick = () => POS.go(b.getAttribute('data-view')); });
-    U.$('#msg-btn').onclick = () => POS.messenger.open();   // Messenger inbox in its own window
     U.$('#lock').onclick = POS.logout;
     U.$('#backup-warn').onclick = () => POS.backup();
     if (POS.syncUpdateButton) POS.syncUpdateButton();   // the Update button in the side bar (everyone may use it)

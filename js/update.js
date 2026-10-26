@@ -67,10 +67,10 @@
     b.classList.toggle('primary', ready);
     b.classList.toggle('has-update', ready);
     b.disabled = !!autoRun;
-    b.innerHTML = (autoRun ? 'Checking...' : (ready ? 'Install update' : (downloading ? 'Downloading...' : 'Update'))) +
+    b.innerHTML = (autoRun ? 'Checking update...' : (ready ? 'Install update' : (downloading ? 'Downloading...' : 'Update'))) +
       (ready ? '<span class="badge hot" id="upd-badge">1</span>' : '');
     b.title = ready ? 'PicklePOS ' + status.version + ' is downloaded. Press to install it now (takes a few seconds).' :
-      'Check GitHub for a newer PicklePOS and install it';
+      'Check for a newer PicklePOS and install it';
     b.onclick = () => POS.updateNow();
   };
 
@@ -98,10 +98,11 @@
   }
 
   // Briefly put a signal in the window title; the launcher watches the title of the app window
+  // (any earlier signal is removed first; the browser trims the title, so no leading space is assumed)
   function signal(code, ms) {
-    const base = document.title.replace(/ \[pp:[^\]]*\]$/, '');
+    const base = document.title.replace(/(\s*\[pp:[^\]]*\])+\s*$/, '');
     document.title = base + ' [pp:' + code + ']';
-    if (ms) setTimeout(() => { document.title = base; }, ms);
+    if (ms) setTimeout(() => { if (document.title.indexOf('[pp:' + code + ']') >= 0) document.title = base; }, ms);
   }
   POS.signalLauncher = signal;
   POS.launcherPresent = () => !!(status && status.launcher);
@@ -132,12 +133,12 @@
   POS.updateNow = function () {
     if (!navigator.onLine) return U.toast('No internet connection. Connect the laptop to Wi-Fi first.', 'error');
     if (!(status && status.launcher)) return U.toast('Updates need the desktop shortcut: close this window and open PicklePOS with Start POS.bat.', 'error');
-    if (autoRun) return U.toast('Already checking GitHub...', '');
+    if (autoRun) return U.toast('Already checking...', '');
     if (isReady()) return POS.restartForUpdate(true);
     autoRun = { since: Date.now(), lastState: '', timer: setTimeout(() => autoFail('The updater did not answer. Please try again.'), 120000) };
     fastUntil = Date.now() + 180000;
     signal('check', 5000);
-    U.toast('Checking GitHub for a new version...', '');
+    U.toast('Checking for updates...', '');
     setTimeout(poll, 1500);
     refreshAbout();
   };
@@ -161,13 +162,13 @@
     if (st === 'downloading') {
       if (autoRun.lastState !== 'downloading') {
         autoRun.lastState = 'downloading';
-        U.toast('Version ' + (status.version || '') + ' found on GitHub. Downloading...', 'ok');
+        U.toast('Update ' + (status.version || '') + ' found. Downloading...', 'ok');
         clearTimeout(autoRun.timer);
         autoRun.timer = setTimeout(() => autoFail('The download is slow. It continues in the background; press Update Now again in a few minutes.'), 15 * 60000);
       }
       return;
     }
-    if (st === 'offline') return autoFail('No internet connection: ' + (status.message || 'GitHub could not be reached.'));
+    if (st === 'offline') return autoFail('No internet connection: ' + (status.message || 'the update server could not be reached.'));
     if (st === 'error') return autoFail('Update check failed: ' + (status.message || 'unknown error'));
     if (isReady()) {
       autoEnd();
@@ -192,7 +193,7 @@
     setTimeout(() => {
       const r = document.querySelector('.restarting');
       if (r) r.remove();
-      document.title = document.title.replace(/ \[pp:[^\]]*\]$/, '');
+      document.title = document.title.replace(/(\s*\[pp:[^\]]*\])+\s*$/, '');
       U.modal({
         title: 'Please restart PicklePOS', cls: 'small',
         body: '<p>Close this window, then open PicklePOS again with the <b>desktop shortcut</b> (Start POS.bat). The update is installed while it opens.</p>',

@@ -196,7 +196,7 @@
   function drawDisplay() {
     const s = S.settings;
     f('st-display').innerHTML =
-      '<label class="chk switch"><input type="checkbox" id="d-anim"><span class="sw"></span> Animations <span class="muted small">(turn off if the laptop feels slow)</span></label>' +
+      '<label class="chk switch"><input type="checkbox" id="d-anim"><span class="sw"></span> Animations &amp; shadows <span class="muted small">(off = lighter and quicker on older laptops)</span></label>' +
       '<label class="chk switch"><input type="checkbox" id="d-snd"><span class="sw"></span> Sounds <span class="muted small">(item added, sale complete, court time alerts)</span></label>' +
       '<div class="row2"><label class="f">Lock the POS automatically after<select id="d-lock">' +
       [[0, 'Never'], [5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes']].map((x) =>
@@ -227,9 +227,9 @@
     box.innerHTML = '<p>PicklePOS version <b>' + U.esc(POS.version) + '</b> &middot; Internet: <b>' + (online ? 'connected' : 'not connected') + '</b></p>' +
       '<div class="update-box ' + u.cls + '">' + u.html + '</div>' +
       '<div class="toolbar"><button class="btn primary" id="a-update"' + (u.launcher && online && !busy ? '' : ' disabled') + '>' +
-      (busy ? 'Checking GitHub...' : (u.ready ? 'Install Update Now' : 'Update Now')) + '</button>' +
+      (busy ? 'Checking for updates...' : (u.ready ? 'Install Update Now' : 'Update Now')) + '</button>' +
       '<button class="btn" id="a-check"' + (u.launcher && !busy ? '' : ' disabled') + '>Check Only</button></div>' +
-      '<p class="muted small"><b>Update Now</b> checks GitHub for a newer PicklePOS, downloads it and installs it by itself: the app closes and opens again ' +
+      '<p class="muted small"><b>Update Now</b> checks for a newer PicklePOS, downloads it and installs it by itself: the app closes and opens again ' +
       'in a few seconds (finish the current order first). PicklePOS also checks every few hours on its own while it has internet. ' +
       'Your sales, menu, photos and settings are always kept.</p>';
     if (U.$('#a-update', box)) U.$('#a-update', box).onclick = () => POS.updateNow();
@@ -241,9 +241,9 @@
     const box = f('st-msg');
     if (!box) return;
     const s = S.settings;
-    box.innerHTML = '<p class="muted small" style="margin-top:0">The <b>Messenger</b> button in the side bar opens your inbox in its own window and shows the ' +
-      'number of unread chats on the button. Log in there once and keep that window open (it can stay behind the POS).</p>' +
-      '<label class="f">Inbox link the button opens<input id="m-url" type="text" placeholder="https://www.messenger.com/"></label>' +
+    box.innerHTML = '<p class="muted small" style="margin-top:0">The <b>Messenger</b> tab shows your inbox inside the POS and the number of unread chats on the tab. ' +
+      'Log in there once; it stays signed in.</p>' +
+      '<label class="f">Inbox link the tab shows<input id="m-url" type="text" placeholder="https://www.messenger.com/"></label>' +
       '<p class="muted small">Personal or Page chats: <code>https://www.messenger.com/</code> &middot; Page inbox in Meta Business Suite: ' +
       '<code>https://business.facebook.com/latest/inbox/all</code></p>' +
       '<label class="f">Facebook Page access token (optional, gives the exact unread count)<input id="m-token" type="password" autocomplete="off" placeholder="Paste the Page token here"></label>' +
@@ -265,7 +265,7 @@
       el2.innerHTML = st.source === 'page' ? ('Connected to Page <b>' + U.esc(s.msgPageName || '') + '</b>' +
           (st.error ? ' &middot; <span class="muted">' + U.esc(st.error) + '</span>' : (st.count === null ? ' &middot; checking...' : ' &middot; ' + chats(st.count)))) :
         st.source === 'window' ? ('Reading the Messenger window: ' + chats(st.count)) :
-        'No Messenger window found and no Page token. Press "Open Messenger", log in, and keep that window open.';
+        'No Page token set; the count comes from the Messenger tab once it has been opened and signed in.';
     };
     status();
     POS.views.settings.refreshMessenger = status;

@@ -81,8 +81,8 @@ $script:PosPid = 0
 $script:MsgProc = $null
 $script:Installed = $false
 $script:LauncherVersion = ''
-# The panel is its own small Chrome (own profile, phone-style identity so Facebook serves the mobile layout)
-$MsgUA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'
+$script:MsgDock = $null          # where the Messenger window must sit (set by the app's Messenger tab)
+$script:PosHwnd = [IntPtr]::Zero
 $MsgTitleMatch = 'Messenger|Facebook|Meta Business|messenger\.com|facebook\.com|Chats'
 function Load-WinApi {
   if ($script:WinApiOk -ne $null) { return $script:WinApiOk }
@@ -102,6 +102,10 @@ public class PPWindows {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L; public int T; public int R; public int B; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  // left, top, width, height in device pixels
+  public static int[] Rect(IntPtr h) { RECT r; GetWindowRect(h, out r); return new int[] { r.L, r.T, r.R - r.L, r.B - r.T }; }
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextLength(IntPtr h);
   // "handle|pid|title" for every visible top-level window that has a title
@@ -140,14 +144,7 @@ function Get-Windows {
   }
   return @(Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { New-Object PSObject -Property @{ Handle = $_.MainWindowHandle; Pid = $_.Id; Title = $_.MainWindowTitle } })
 }
-# Where the panel goes: bottom right of the screen, above the taskbar
-function Get-PanelRect {
-  Add-Type -AssemblyName System.Windows.Forms
-  $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-  $wd = 400; $ht = [Math]::Min(640, $area.Height - 16)
-  return @{ X = $area.Right - $wd - 10; Y = $area.Bottom - $ht - 8; W = $wd; H = $ht }
-}
-# The panel window: the one opened by Toggle-Messenger (its own Chrome, profile data\messenger-profile)
+# The Messenger window: the one this launcher opened (its own Chrome, profile data\messenger-profile)
 function Find-MsgWindow {
   $cands = @(Get-Windows | Where-Object { $_.Title -match $MsgTitleMatch -and $_.Title -notmatch 'PicklePOS' })
   if (-not $cands.Count) { return $null }
@@ -161,39 +158,62 @@ function Find-MsgWindow {
   }
   return $null
 }
-# Dock the panel and bring it to the front
-function Show-MsgWindow($w) {
+# Snap the Messenger window over the tab's content area. Its own title bar (about 32 px) is placed just
+# above the area, i.e. over the POS title bar, so the chat content fills the tab exactly. While docked it
+# stays above the POS (topmost) - the per-second check below hides it when neither is in front.
+function Place-MsgWindow($w) {
+  $d = $script:MsgDock
+  if (-not $d) { return }
   try {
-    $r = Get-PanelRect
-    [PPWindows]::ShowWindow($w.Handle, 9) | Out-Null                                                          # SW_RESTORE
-    [PPWindows]::SetWindowPos($w.Handle, [IntPtr]::Zero, $r.X, $r.Y, $r.W, $r.H, [uint32]0x0040) | Out-Null   # SWP_SHOWWINDOW
+    $th = [int][Math]::Round(32 * $d.Dpr / 100)
+    [PPWindows]::ShowWindow($w.Handle, 9) | Out-Null                                                                        # SW_RESTORE
+    [PPWindows]::SetWindowPos($w.Handle, [IntPtr](-1), $d.X, ($d.Y - $th), $d.W, ($d.H + $th), [uint32]0x0040) | Out-Null   # HWND_TOPMOST, SWP_SHOWWINDOW
     [PPWindows]::SetForegroundWindow($w.Handle) | Out-Null
   } catch { Log ('Messenger window: ' + $_.Exception.Message) }
 }
-# One press on the app's Messenger button: open the panel, or bring it to the front,
-# or (if it is already in front) tuck it away to the taskbar
-function Toggle-Messenger([string]$msgUrl) {
+# The app opened its Messenger tab: open the window if needed and snap it in
+function Dock-Messenger([string]$msgUrl) {
   if (-not (Load-WinApi)) { Log 'Messenger window: Windows API not available'; return }
   if (-not $msgUrl) { $msgUrl = 'https://www.messenger.com/' }
   $w = Find-MsgWindow
-  if ($w) {
-    $front = [PPWindows]::GetForegroundWindow()
-    if (-not [PPWindows]::IsIconic($w.Handle) -and $front -eq $w.Handle) { [PPWindows]::ShowWindow($w.Handle, 6) | Out-Null }   # SW_MINIMIZE
-    else { Show-MsgWindow $w }
-  } else {
+  if (-not $w) {
     try {
-      $r = Get-PanelRect
+      $d = $script:MsgDock
       if (-not (Test-Path $MsgProfile)) { New-Item -ItemType Directory -Path $MsgProfile | Out-Null }
       $psi2 = New-Object Diagnostics.ProcessStartInfo $browser
-      $psi2.Arguments = '--user-data-dir="' + $MsgProfile + '" --app="' + $msgUrl + '" --window-size=' + $r.W + ',' + $r.H +
-        ' --window-position=' + $r.X + ',' + $r.Y + ' --user-agent="' + $MsgUA + '" --no-first-run --no-default-browser-check --disable-background-mode --disable-features=Translate'
+      $psi2.Arguments = '--user-data-dir="' + $MsgProfile + '" --app="' + $msgUrl + '" --window-size=' + $d.W + ',' + ($d.H + 32) +
+        ' --window-position=' + $d.X + ',' + [Math]::Max(0, $d.Y - 32) + ' --no-first-run --no-default-browser-check --disable-background-mode' +
+        ' --disable-extensions --disable-component-update --disable-sync --disable-breakpad --no-pings --disable-features=Translate'
       $psi2.UseShellExecute = $false
       $script:MsgProc = [Diagnostics.Process]::Start($psi2)
     } catch { Log ('Could not open Messenger: ' + $_.Exception.Message); return }
     for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Milliseconds 400; $w = Find-MsgWindow; if ($w) { break } }
-    if ($w) { Show-MsgWindow $w } else { Log 'Messenger window did not appear' }
+    if (-not $w) { Log 'Messenger window did not appear'; return }
+  }
+  Place-MsgWindow $w
+  Write-MsgStatus
+}
+# The app left its Messenger tab: tuck the window away (it keeps running, logged in)
+function Hide-Messenger {
+  $script:MsgDock = $null
+  $w = Find-MsgWindow
+  if ($w) {
+    try {
+      [PPWindows]::SetWindowPos($w.Handle, [IntPtr](-2), 0, 0, 0, 0, [uint32]0x0003) | Out-Null   # HWND_NOTOPMOST, SWP_NOSIZE|SWP_NOMOVE
+      [PPWindows]::ShowWindow($w.Handle, 6) | Out-Null                                            # SW_MINIMIZE
+    } catch { }
   }
   Write-MsgStatus
+}
+# Every second while docked: show the window when the POS or the window itself is in front, hide it otherwise
+function Keep-Messenger {
+  if (-not $script:MsgDock -or -not $script:WinApiOk) { return }
+  $w = Find-MsgWindow
+  if (-not $w) { return }
+  $fg = [PPWindows]::GetForegroundWindow()
+  $inFront = ($fg -eq $w.Handle) -or ($fg -eq $script:PosHwnd)
+  if ($inFront) { if ([PPWindows]::IsIconic($w.Handle)) { Place-MsgWindow $w } }
+  elseif (-not [PPWindows]::IsIconic($w.Handle)) { [PPWindows]::ShowWindow($w.Handle, 6) | Out-Null }
 }
 function Close-Messenger {
   try { if ($script:MsgProc -and -not $script:MsgProc.HasExited) { $script:MsgProc.CloseMainWindow() | Out-Null } } catch { }
@@ -202,7 +222,7 @@ function Write-MsgStatus {
   $found = $false; $open = $false; $count = 0; $title = ''
   try {
     $panel = Find-MsgWindow
-    if ($panel) {
+    if ($panel -and $script:MsgDock) {
       if ($script:WinApiOk) { if (-not [PPWindows]::IsIconic($panel.Handle)) { $open = $true } } else { $open = $true }
     }
     foreach ($w in (Get-Windows)) {
@@ -323,13 +343,13 @@ function Check-Update {
     if ($we) { $msg = $we.Message }
     Log ('Update check failed: ' + $msg)
     if ($stagedOk) { Write-Status 'ready' $staged (Get-Field $readyText 'POS_NOTES') '' }
-    elseif ($we -and $we.Response) { Write-Status 'error' '' '' ('GitHub: ' + $msg) }
+    elseif ($we -and $we.Response) { Write-Status 'error' '' '' ('Update server: ' + $msg) }
     else { Write-Status 'offline' '' '' $msg }
     return
   }
   $remote = Get-Field $remoteText 'POS_VERSION'
   $notes = Get-Field $remoteText 'POS_NOTES'
-  if (-not $remote) { Write-Status 'error' '' '' 'Could not read the version on GitHub'; return }
+  if (-not $remote) { Write-Status 'error' '' '' 'Could not read the latest version'; return }
   if (-not (Is-Newer $remote $local)) { Write-Status 'current' $remote $notes ''; return }
   if ($stagedOk -and -not (Is-Newer $remote $staged)) { Write-Status 'ready' $staged $notes ''; return }
 
@@ -420,7 +440,9 @@ $profileDir = Join-Path $dataPath 'browser-profile'
 $MsgProfile = Join-Path $dataPath 'messenger-profile'
 if (-not (Test-Path $dataPath)) { New-Item -ItemType Directory -Path $dataPath | Out-Null }
 $url = (New-Object Uri (Join-Path $App 'index.html')).AbsoluteUri
-$flags = '--user-data-dir="' + $profileDir + '" --app="' + $url + '" --start-maximized --no-first-run --no-default-browser-check --disable-features=Translate --disable-background-mode'
+# The extra --disable-* flags stop background work Chrome does not need for a local POS (lighter on old laptops)
+$flags = '--user-data-dir="' + $profileDir + '" --app="' + $url + '" --start-maximized --no-first-run --no-default-browser-check --disable-features=Translate --disable-background-mode' +
+  ' --disable-extensions --disable-component-update --disable-sync --disable-breakpad --no-pings'
 if (-not $NoKiosk) { $flags = $flags + ' --kiosk-printing' }
 if ($ExtraFlags) { $flags = $flags + ' ' + $ExtraFlags }
 
@@ -450,7 +472,8 @@ while ($true) {
   $restart = $false
   $nextCheck = (Get-Date).AddSeconds($FirstCheckSeconds)
   $lastAsk = (Get-Date).AddMinutes(-5)
-  $lastMsg = (Get-Date).AddMinutes(-5)
+  $script:LastDockKey = ''
+  $script:MsgDock = $null
   $script:PosPid = $proc.Id
   $msgTick = 0
   Write-MsgStatus
@@ -459,12 +482,24 @@ while ($true) {
     if ($msgTick % 6 -eq 0) { Write-MsgStatus }   # unread Messenger chats, about every 6 seconds
     $title = ''
     try { $proc.Refresh(); $title = [string]$proc.MainWindowTitle } catch { }
-    if ($title -match '\[pp:msg(?::([^\]]*))?\]' -and ((Get-Date) -gt $lastMsg.AddSeconds(5))) {
-      $lastMsg = Get-Date
-      $u = ''
-      if ($matches.Count -gt 1 -and $matches[1]) { try { $u = [Uri]::UnescapeDataString($matches[1]) } catch { } }
-      try { Toggle-Messenger $u } catch { Log ('Messenger: ' + $_.Exception.Message) }
+    try { $script:PosHwnd = $proc.MainWindowHandle } catch { }
+    # Only the newest signal in the title counts
+    $sigs = [regex]::Matches($title, '\[pp:[^\]]*\]')
+    $last = ''
+    if ($sigs.Count -gt 0) { $last = $sigs[$sigs.Count - 1].Value }
+    if ($last -match '\[pp:msgdock:(\d+),(\d+),(\d+),(\d+),(\d+):([^\]]*)\]') {
+      $key = $matches[0]
+      if ($key -ne $script:LastDockKey) {
+        $script:LastDockKey = $key
+        $script:MsgDock = @{ X = [int]$matches[1]; Y = [int]$matches[2]; W = [int]$matches[3]; H = [int]$matches[4]; Dpr = [int]$matches[5] }
+        $u = ''
+        try { $u = [Uri]::UnescapeDataString($matches[6]) } catch { }
+        try { Dock-Messenger $u } catch { Log ('Messenger: ' + $_.Exception.Message) }
+      }
+    } elseif ($last -eq '[pp:msghide]') {
+      if ($script:MsgDock) { $script:LastDockKey = ''; try { Hide-Messenger } catch { } }
     }
+    try { Keep-Messenger } catch { }
     if ($title -match '\[pp:print:(\d+)\]') {
       $sig = [long]$matches[1]
       if ($sig -ne $script:PrintSig) {

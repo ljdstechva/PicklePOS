@@ -30,6 +30,7 @@
   POS.can = function (k) {
     const u = S.user;
     if (!u) return false;
+    if (k === 'messenger') return true;   // the Messenger tab is for everyone at the counter
     return u.role === 'owner' || POS.permsOf(u).indexOf(k) >= 0;
   };
   POS.roleLabel = (u) => (u.role === 'owner' ? 'Owner' : 'Employee');
