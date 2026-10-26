@@ -678,7 +678,7 @@
         (t.change > 0 ? '<div class="muted">Change to give</div><div class="due" id="dn-amt"></div>' :
           '<div class="due" id="dn-amt"></div><div class="muted">Paid in full</div>') +
         '<div class="muted small">' + (o.payments || []).map((p) => U.esc(p.method) + ' ' + U.money(p.tendered || p.amount)).join(' + ') +
-        (S.settings.autoPrint ? ' &middot; receipt printing' : '') + '</div>' +
+        (S.settings.autoPrint ? ' &middot; receipt printed' : '') + '</div>' +
         (o.toKitchen ? '<div class="sent-kitchen">' + POS.icon('kitchen') + ' Sent to the Kitchen screen</div>' : '') + '</div>',
       buttons: [
         { label: S.settings.autoPrint ? 'Reprint Receipt' : 'Print Receipt', onClick: () => { P.receipt(o, { reprint: S.settings.autoPrint }); return false; } },

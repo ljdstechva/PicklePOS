@@ -71,13 +71,17 @@ function Write-Status([string]$state, [string]$version, [string]$notes, [string]
   } catch { Log ('Could not write status: ' + $_.Exception.Message) }
 }
 
-# ---- Messenger: unread chats, read from the Messenger window's title ("(3) Messenger") ----
-# Written to messenger-status.js every few seconds; the app shows the number on its Messenger button.
+# ---- Messenger: a floating inbox window (opened in the POS browser profile, docked at the bottom
+#      right, no address bar) and the unread count read from its title ("(3) Messenger").
+#      The app presses its Messenger button -> title signal "[pp:msg:<url>]" -> Toggle-Messenger.
+#      messenger-status.js is rewritten every few seconds; the app shows the number on the button. ----
 $script:WinApiOk = $null
-function Get-WindowTitles {
-  if ($script:WinApiOk -eq $null) {
-    try {
-      Add-Type -TypeDefinition @"
+$script:PosPid = 0
+$MsgTitleMatch = 'Messenger|Facebook|Meta Business|messenger\.com|facebook\.com'
+function Load-WinApi {
+  if ($script:WinApiOk -ne $null) { return $script:WinApiOk }
+  try {
+    Add-Type -TypeDefinition @"
 using System;
 using System.Text;
 using System.Collections.Generic;
@@ -86,14 +90,25 @@ public class PPWindows {
   public delegate bool EnumProc(IntPtr h, IntPtr l);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextLength(IntPtr h);
-  public static List<string> Titles() {
+  // "handle|pid|title" for every visible top-level window that has a title
+  public static List<string> Windows() {
     List<string> r = new List<string>();
     EnumWindows(delegate(IntPtr h, IntPtr l) {
       if (IsWindowVisible(h)) {
         int n = GetWindowTextLength(h);
-        if (n > 0) { StringBuilder sb = new StringBuilder(n + 1); GetWindowText(h, sb, n + 1); r.Add(sb.ToString()); }
+        if (n > 0) {
+          StringBuilder sb = new StringBuilder(n + 1); GetWindowText(h, sb, n + 1);
+          uint pid; GetWindowThreadProcessId(h, out pid);
+          r.Add(h.ToInt64().ToString() + "|" + pid.ToString() + "|" + sb.ToString());
+        }
       }
       return true;
     }, IntPtr.Zero);
@@ -101,25 +116,83 @@ public class PPWindows {
   }
 }
 "@
-      $script:WinApiOk = $true
-    } catch { $script:WinApiOk = $false }
+    $script:WinApiOk = $true
+  } catch { $script:WinApiOk = $false }
+  return $script:WinApiOk
+}
+# Visible windows as objects with Handle, Pid and Title
+function Get-Windows {
+  if (Load-WinApi) {
+    try {
+      $list = @()
+      foreach ($line in [PPWindows]::Windows()) {
+        $p = $line.Split('|', 3)
+        $list += New-Object PSObject -Property @{ Handle = [IntPtr][long]$p[0]; Pid = [int]$p[1]; Title = $p[2] }
+      }
+      return $list
+    } catch { }
   }
-  if ($script:WinApiOk) { try { return [PPWindows]::Titles() } catch { } }
-  return @(Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { $_.MainWindowTitle })
+  return @(Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { New-Object PSObject -Property @{ Handle = $_.MainWindowHandle; Pid = $_.Id; Title = $_.MainWindowTitle } })
+}
+# The Messenger window that belongs to the POS browser (the one Toggle-Messenger opened)
+function Find-MsgWindow {
+  if (-not $script:PosPid) { return $null }
+  foreach ($w in (Get-Windows)) {
+    if ($w.Pid -eq $script:PosPid -and $w.Title -match $MsgTitleMatch -and $w.Title -notmatch 'PicklePOS') { return $w }
+  }
+  return $null
+}
+# Dock the window at the bottom right of the screen (above the taskbar) and bring it to the front
+function Show-MsgWindow($w) {
+  try {
+    Add-Type -AssemblyName System.Windows.Forms
+    $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $wd = 400; $ht = [Math]::Min(640, $area.Height - 16)
+    $x = $area.Right - $wd - 10; $y = $area.Bottom - $ht - 8
+    [PPWindows]::ShowWindow($w.Handle, 9) | Out-Null                                                # SW_RESTORE
+    [PPWindows]::SetWindowPos($w.Handle, [IntPtr]::Zero, $x, $y, $wd, $ht, [uint32]0x0040) | Out-Null   # SWP_SHOWWINDOW
+    [PPWindows]::SetForegroundWindow($w.Handle) | Out-Null
+  } catch { Log ('Messenger window: ' + $_.Exception.Message) }
+}
+# One press on the app's Messenger button: open the inbox window, or bring it to the front,
+# or (if it is already in front) tuck it away to the taskbar
+function Toggle-Messenger([string]$msgUrl) {
+  if (-not (Load-WinApi)) { Log 'Messenger window: Windows API not available'; return }
+  if (-not $msgUrl) { $msgUrl = 'https://www.messenger.com/' }
+  $w = Find-MsgWindow
+  if ($w) {
+    $front = [PPWindows]::GetForegroundWindow()
+    if (-not [PPWindows]::IsIconic($w.Handle) -and $front -eq $w.Handle) { [PPWindows]::ShowWindow($w.Handle, 6) | Out-Null }   # SW_MINIMIZE
+    else { Show-MsgWindow $w }
+  } else {
+    try {
+      $psi2 = New-Object Diagnostics.ProcessStartInfo $browser
+      $psi2.Arguments = '--user-data-dir="' + $profileDir + '" --app="' + $msgUrl + '" --window-size=400,640 --no-first-run'
+      $psi2.UseShellExecute = $false
+      [Diagnostics.Process]::Start($psi2) | Out-Null
+    } catch { Log ('Could not open Messenger: ' + $_.Exception.Message); return }
+    for ($i = 0; $i -lt 25; $i++) { Start-Sleep -Milliseconds 400; $w = Find-MsgWindow; if ($w) { break } }
+    if ($w) { Show-MsgWindow $w } else { Log 'Messenger window did not appear' }
+  }
+  Write-MsgStatus
 }
 function Write-MsgStatus {
-  $found = $false; $count = 0; $title = ''
+  $found = $false; $open = $false; $count = 0; $title = ''
   try {
-    foreach ($t in (Get-WindowTitles)) {
-      if ($t -notmatch 'Messenger|Facebook|Meta Business') { continue }
-      if ($t -match 'PicklePOS') { continue }
+    foreach ($w in (Get-Windows)) {
+      $t = $w.Title
+      if ($t -notmatch $MsgTitleMatch -or $t -match 'PicklePOS') { continue }
       $found = $true
+      if ($script:PosPid -and $w.Pid -eq $script:PosPid) {
+        if ($script:WinApiOk) { if (-not [PPWindows]::IsIconic($w.Handle)) { $open = $true } } else { $open = $true }
+      }
       if ($t -match '^\((\d+)\)') { $n = [int]$matches[1]; if ($n -gt $count) { $count = $n; $title = $t } }
       elseif (-not $title) { $title = $t }
     }
     $ms = [long](((Get-Date).ToUniversalTime() - (New-Object DateTime 1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds)
     $f = 'false'; if ($found) { $f = 'true' }
-    $js = 'window.POS_MSG = {"window":' + $f + ',"count":' + $count + ',"title":' + (Js $title) + ',"at":' + $ms + '};'
+    $o = 'false'; if ($open) { $o = 'true' }
+    $js = 'window.POS_MSG = {"window":' + $f + ',"open":' + $o + ',"count":' + $count + ',"title":' + (Js $title) + ',"at":' + $ms + '};'
     $tmp = $MsgFile + '.tmp'
     [IO.File]::WriteAllText($tmp, $js)
     if (Test-Path $MsgFile) { Remove-Item $MsgFile -Force }
@@ -291,6 +364,8 @@ while ($true) {
   $restart = $false
   $nextCheck = (Get-Date).AddSeconds($FirstCheckSeconds)
   $lastAsk = (Get-Date).AddMinutes(-5)
+  $lastMsg = (Get-Date).AddMinutes(-5)
+  $script:PosPid = $proc.Id
   $msgTick = 0
   Write-MsgStatus
   while (-not $proc.HasExited) {
@@ -298,6 +373,12 @@ while ($true) {
     if ($msgTick % 3 -eq 0) { Write-MsgStatus }   # unread Messenger chats, about every 6 seconds
     $title = ''
     try { $proc.Refresh(); $title = [string]$proc.MainWindowTitle } catch { }
+    if ($title -match '\[pp:msg(?::([^\]]*))?\]' -and ((Get-Date) -gt $lastMsg.AddSeconds(5))) {
+      $lastMsg = Get-Date
+      $u = ''
+      if ($matches.Count -gt 1 -and $matches[1]) { try { $u = [Uri]::UnescapeDataString($matches[1]) } catch { } }
+      try { Toggle-Messenger $u } catch { Log ('Messenger: ' + $_.Exception.Message) }
+    }
     if ($title.Contains('[pp:restart]')) {
       Log 'Restart requested by the app'
       $restart = $true

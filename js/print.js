@@ -109,11 +109,41 @@
     return h + '<hr>';
   };
 
-  // Sends HTML to the default printer through a hidden frame.
+  /* ---- "Printing..." overlay: a small printer feeding paper, then "Done" for a moment ---- */
+  let ovTimer = null;
+  P.showPrinting = function (what) {
+    P.hidePrinting(true);
+    const ov = U.h('<div class="print-ov" id="print-ov"><div class="print-card">' +
+      '<div class="printer"><div class="p-body"></div><div class="p-paper"></div></div>' +
+      '<div class="p-text">' + (what ? 'Printing ' + U.esc(what) + '...' : 'Printing...') + '</div></div></div>');
+    document.body.appendChild(ov);
+    return ov;
+  };
+  P.donePrinting = function (ok, msg) {
+    const ov = document.getElementById('print-ov');
+    if (!ov) return;
+    ov.classList.add(ok ? 'done' : 'failed');
+    const t = ov.querySelector('.p-text');
+    if (t) t.innerHTML = ok ? '<span class="p-check">&#10003;</span> Done' : U.esc(msg || 'Printing failed');
+    clearTimeout(ovTimer);
+    ovTimer = setTimeout(() => P.hidePrinting(), ok ? 1400 : 2800);
+  };
+  P.hidePrinting = function (now) {
+    const ov = document.getElementById('print-ov');
+    if (!ov) return;
+    clearTimeout(ovTimer);
+    if (now || !POS.anim()) { ov.remove(); return; }
+    ov.classList.add('out');
+    setTimeout(() => { if (ov.parentNode) ov.remove(); }, 320);
+  };
+
+  // Sends HTML to the default printer through a hidden frame, showing the "Printing..." overlay.
   // With Start POS.bat (--kiosk-printing) it prints silently; otherwise the print dialog appears.
-  P.send = function (inner) {
+  // what = 'receipt', 'kitchen slip', ... (shown on the overlay)
+  P.send = function (inner, what) {
     const old = document.getElementById('print-frame');
     if (old) old.remove();
+    P.showPrinting(what);
     const f = document.createElement('iframe');
     f.id = 'print-frame';
     f.setAttribute('aria-hidden', 'true');
@@ -128,30 +158,32 @@
     const go = () => {
       try {
         f.contentWindow.focus();
-        f.contentWindow.print();
+        f.contentWindow.print();   // returns once Windows has the job (silent in kiosk mode)
+        P.donePrinting(true);
       } catch (e) {
         U.toast('Printing failed: ' + e.message, 'error');
+        P.donePrinting(false, 'Printing failed: ' + e.message);
       }
     };
     const imgs = Array.prototype.slice.call(d.images);
     let pending = imgs.filter((i) => !i.complete).length;
-    if (!pending) setTimeout(go, 150);
+    if (!pending) setTimeout(go, 250);
     else imgs.forEach((i) => {
-      if (!i.complete) i.onload = i.onerror = () => { if (--pending === 0) setTimeout(go, 100); };
+      if (!i.complete) i.onload = i.onerror = () => { if (--pending === 0) setTimeout(go, 150); };
     });
   };
 
-  P.receipt = (o, opts) => P.send(P.receiptHTML(o, opts));
-  P.kitchen = (o, items) => P.send(P.kitchenHTML(o, items));
+  P.receipt = (o, opts) => P.send(P.receiptHTML(o, opts), 'receipt');
+  P.kitchen = (o, items) => P.send(P.kitchenHTML(o, items), 'kitchen slip');
   P.receiptAndKitchen = (o, items) => P.send(P.receiptHTML(o) +
-    '<div class="feed"></div><div class="cut">- - - - - tear here - - - - -</div>' + P.kitchenHTML(o, items));
+    '<div class="feed"></div><div class="cut">- - - - - tear here - - - - -</div>' + P.kitchenHTML(o, items), 'receipt and kitchen slip');
 
   P.test = function () {
     const s = POS.state.settings;
     P.send(P.header(s) + '<div class="c b">PRINTER TEST</div><div class="c">' + U.fmtDT(Date.now()) + '</div><hr>' +
       row('Item name', '123.45') + row('Another longer item name that wraps', '1,000.00') +
       '<hr>' + row('TOTAL', U.money(1123.45), 'b big') +
-      '<hr><div class="c">If this prints clearly, printing is set up correctly.</div>');
+      '<hr><div class="c">If this prints clearly, printing is set up correctly.</div>', 'test receipt');
   };
 
   // On-screen preview that looks like the printout

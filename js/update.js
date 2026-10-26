@@ -98,10 +98,12 @@
 
   // Briefly put a signal in the window title; the launcher watches the title of the app window
   function signal(code, ms) {
-    const base = document.title.replace(/ \[pp:\w+\]$/, '');
+    const base = document.title.replace(/ \[pp:[^\]]*\]$/, '');
     document.title = base + ' [pp:' + code + ']';
     if (ms) setTimeout(() => { document.title = base; }, ms);
   }
+  POS.signalLauncher = signal;
+  POS.launcherPresent = () => !!(status && status.launcher);
 
   POS.checkUpdates = function () {
     fastUntil = Date.now() + 120000;
@@ -177,7 +179,7 @@
     setTimeout(() => {
       const r = document.querySelector('.restarting');
       if (r) r.remove();
-      document.title = document.title.replace(/ \[pp:\w+\]$/, '');
+      document.title = document.title.replace(/ \[pp:[^\]]*\]$/, '');
       U.modal({
         title: 'Please restart PicklePOS', cls: 'small',
         body: '<p>Close this window, then open PicklePOS again with the <b>desktop shortcut</b> (Start POS.bat). The update is installed while it opens.</p>',

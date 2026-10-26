@@ -440,3 +440,23 @@ label.inline input { width: auto; }
 #st-msg code { font-size: 12px; word-break: break-all; }
 #st-msg details { margin-top: 8px; }
 #st-msg summary { cursor: pointer; font-weight: 700; }
+
+/* ---------- "Printing..." overlay (1.2.1) ---------- */
+.print-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 150; display: flex; align-items: center; justify-content: center;
+  background: rgba(15,28,21,.35); transition: opacity .3s; }
+.print-ov.out { opacity: 0; }
+.print-card { background: var(--panel); border-radius: 18px; padding: 22px 32px 18px; min-width: 240px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,.28); }
+.printer { position: relative; width: 96px; height: 78px; margin: 0 auto 10px; }
+.printer .p-body { position: absolute; left: 0; right: 0; top: 24px; height: 30px; background: var(--ink); border-radius: 8px; }
+.printer .p-body::before { content: ''; position: absolute; left: 22px; right: 22px; top: -10px; height: 12px; background: #3a4a42; border-radius: 4px 4px 0 0; }
+.printer .p-body::after { content: ''; position: absolute; left: 14px; right: 14px; top: 11px; height: 4px; background: #5c6d64; border-radius: 2px; }
+.printer .p-paper { position: absolute; left: 20px; width: 56px; top: 52px; height: 30px; background: #fff; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 4px 4px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0 6px, #cfd6d1 6px 8px); transform-origin: top; transform: scaleY(0); will-change: transform, opacity;
+  animation: p-feed 1.1s linear infinite; }
+@keyframes p-feed { 0% { transform: scaleY(0); opacity: 1; } 70% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+.p-text { font-size: 16px; font-weight: 800; color: var(--ink); }
+.print-ov.done .p-paper, .print-ov.failed .p-paper, .no-anim .printer .p-paper { animation: none; transform: scaleY(1); opacity: 1; }
+.p-check { display: inline-block; width: 26px; height: 26px; line-height: 26px; border-radius: 50%; background: var(--ok); color: #fff; margin-right: 6px; font-size: 15px; vertical-align: -3px; }
+.print-ov.done .p-text { color: var(--ok); }
+.print-ov.failed .p-text { color: var(--danger); font-size: 14px; }
+.nav button#msg-btn.on { background: #0a7cff; box-shadow: 0 6px 14px rgba(10,124,255,.28); }
