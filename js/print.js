@@ -5,8 +5,12 @@
   const P = POS.print = {};
   const esc = U.esc, num = U.num;
 
+  // Printable width in mm. A 58 mm printer's head covers 48 mm, but the rightmost 3-4 mm land
+  // off the paper (measured with a calibration print), so the receipt stays inside 44 mm.
+  P.width = (s) => (+s.paper === 80 ? 68 : 44);
+
   P.css = function (s) {
-    const w = +s.paper === 80 ? 72 : 48; // printable width in mm
+    const w = P.width(s);
     const fs = +s.fontSize || 12;
     return '@page{margin:0}html,body{margin:0;padding:0;background:#fff}' +
       'body{width:' + w + 'mm;padding:0 1mm;box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;' +
@@ -153,7 +157,7 @@
   // On-screen preview that looks like the printout
   P.preview = function (inner) {
     const fs = +POS.state.settings.fontSize || 12;
-    const w = +POS.state.settings.paper === 80 ? 72 : 48;
+    const w = P.width(POS.state.settings);
     return '<div class="receipt-preview" style="width:' + (w + 6) + 'mm;font-size:' + fs + 'px">' +
       '<style>.receipt-preview ' + P.innerCss(fs).replace(/}(?=.)/g, '}.receipt-preview ') + '</style>' + inner + '</div>';
   };
