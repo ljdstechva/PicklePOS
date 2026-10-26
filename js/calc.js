@@ -74,11 +74,21 @@
     let disc = 0, vatEx = 0, exemptNet = 0;
 
     if (d && (d.type === 'senior' || d.type === 'pwd')) {
-      // RA 9994 / RA 10754: 20% off the Senior/PWD's share (+ VAT exemption if VAT-registered)
-      const base = food + (d.includeCourt ? court : 0);
-      const pax = Math.max(1, +d.pax || 1);
-      const cnt = Math.min(pax, Math.max(0, +d.count || 1));
-      const share = base / pax * cnt;
+      // RA 9994 / RA 10754: 20% off what the Senior/PWD consumed (+ VAT exemption if VAT-registered).
+      // If the cashier ticked the Senior/PWD's own items, only those are discounted (their meal, not the
+      // whole bill). If nothing is ticked, the bill is divided equally: bill / guests x Senior/PWD count.
+      let share;
+      const own = Array.isArray(d.lineIds) && d.lineIds.length ? d.lineIds : null;
+      if (own) {
+        share = 0;
+        o.lines.forEach((l) => { if (own.indexOf(l.id) >= 0) share += C.lineAmount(l, now); });
+        share = U.r2(share);
+      } else {
+        const base = food + (d.includeCourt ? court : 0);
+        const pax = Math.max(1, +d.pax || 1);
+        const cnt = Math.min(pax, Math.max(0, +d.count || 1));
+        share = base / pax * cnt;
+      }
       if (s.vatRegistered) {
         exemptNet = share / 1.12;
         vatEx = share - exemptNet;

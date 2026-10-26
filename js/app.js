@@ -381,12 +381,14 @@
         (v === 'kitchen' ? '<span class="badge hot" id="kitchen-badge"></span>' : '') +
         (v === 'courts' ? '<span class="badge" id="courts-badge"></span>' : '') + '</button>').join('') + '</nav>' +
       '<div class="rail-foot"><button class="btn sm warn hidden" id="backup-warn" title="Download a backup copy of your data">Backup due</button>' +
+      '<button class="btn sm hidden" id="upd-btn" title="Check GitHub for a newer PicklePOS and install it">Update</button>' +
       '<span class="clock"></span><button class="rail-lock" id="lock" title="' + U.esc(S.user.name) + ' - press to lock the POS">' +
       '<span class="avatar" style="background:' + U.colorFor(S.user.name) + '">' + U.esc(U.initials(S.user.name)) + '</span>' +
       '<span>' + POS.icon('lock') + ' Lock</span></button></div></aside><main class="main" id="main"></main>';
     U.$$('.nav button', app).forEach((b) => { b.onclick = () => POS.go(b.getAttribute('data-view')); });
     U.$('#lock').onclick = POS.logout;
     U.$('#backup-warn').onclick = () => POS.backup();
+    if (POS.syncUpdateButton) POS.syncUpdateButton();   // the Update button in the side bar (everyone may use it)
     POS.updateBadges();
     POS.tick();
   };

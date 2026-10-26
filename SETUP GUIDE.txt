@@ -241,9 +241,16 @@ STAFF & ACCESS
 ---------------------------------------------------------------------
 AUTOMATIC UPDATES
 ---------------------------------------------------------------------
-  When the laptop has internet, PicklePOS checks GitHub for a new
-  version (a few seconds after opening, then every 3 hours) and
-  downloads it quietly in the background.
+  UPDATE BUTTON (anyone, including employees): press "Update" at the
+  bottom of the left side bar. If the laptop has internet, PicklePOS
+  asks GitHub for a newer version, downloads it and installs it by
+  itself - the window closes and opens again in a few seconds.
+  Finish or save the current order first. The same button is in
+  Settings > About & Updates ("Update Now").
+
+  When the laptop has internet, PicklePOS also checks GitHub for a new
+  version by itself (a few seconds after opening, then every 3 hours)
+  and downloads it quietly in the background.
     - A dark bar appears: "PicklePOS x.y.z is ready". Press
       "Restart Now" (finish the current order first) - the window
       closes and opens again with the new version. Or press "Later";

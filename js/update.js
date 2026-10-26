@@ -7,7 +7,7 @@
   'use strict';
   const U = POS.util;
   POS.version = window.POS_VERSION || '0.0.0';
-  let status = null, fastUntil = 0, lastPoll = 0, hiddenFor = '';
+  let status = null, fastUntil = 0, lastPoll = 0, hiddenFor = '', autoRun = null;
 
   // true if version a is newer than b ("1.10.0" > "1.9.2")
   POS.newerVersion = function (a, b) {
@@ -54,7 +54,24 @@
     return { cls: 'ok', launcher: true, html: 'PicklePOS is up to date' + when + '.' };
   };
 
+  // Side-bar "Update" button: visible to every user (employees too). Plain "Update" checks GitHub
+  // and installs; it turns into "Install update" once a newer version has been downloaded.
+  POS.syncUpdateButton = function () {
+    const b = document.getElementById('upd-btn');
+    if (!b) return;
+    const ready = isReady();
+    b.classList.remove('hidden');
+    b.classList.toggle('primary', ready);
+    b.disabled = !!autoRun;
+    b.textContent = autoRun ? 'Checking...' : (ready ? 'Install update' : 'Update');
+    b.title = ready ? 'PicklePOS ' + status.version + ' is downloaded. Press to install it now (takes a few seconds).' :
+      'Check GitHub for a newer PicklePOS and install it';
+    b.onclick = () => POS.updateNow();
+  };
+
   function changed() {
+    autoStep();
+    POS.syncUpdateButton();
     const v = POS.views && POS.state.view === 'settings' && POS.views.settings;
     if (v && v.refresh) v.refresh();
     let bar = document.getElementById('upd-bar');
@@ -80,11 +97,69 @@
     signal('check', 5000);
   };
 
-  POS.restartForUpdate = async function () {
-    if (POS.cart && POS.cart.lines.length && POS.cartDirty) {
-      return U.toast('Finish or save the current order first, then restart.', 'error');
+  /* ---- "Update Now": one click = check internet, ask GitHub, download, install, reopen ----
+     The launcher does the downloading (it answers the "[pp:check]" title signal by writing
+     update-status.js); this code watches that status and restarts the app as soon as a newer
+     version is downloaded, with no further clicks. */
+  POS.updateBusy = () => !!autoRun;
+
+  POS.updateNow = function () {
+    if (!navigator.onLine) return U.toast('No internet connection. Connect the laptop to Wi-Fi first.', 'error');
+    if (!(status && status.launcher)) return U.toast('Updates need the desktop shortcut: close this window and open PicklePOS with Start POS.bat.', 'error');
+    if (autoRun) return U.toast('Already checking GitHub...', '');
+    if (isReady()) return POS.restartForUpdate(true);
+    autoRun = { since: Date.now(), lastState: '', timer: setTimeout(() => autoFail('The updater did not answer. Please try again.'), 120000) };
+    fastUntil = Date.now() + 180000;
+    signal('check', 5000);
+    U.toast('Checking GitHub for a new version...', '');
+    setTimeout(poll, 1500);
+    refreshAbout();
+  };
+
+  function refreshAbout() {
+    POS.syncUpdateButton();
+    const v = POS.views && POS.state.view === 'settings' && POS.views.settings;
+    if (v && v.refresh) v.refresh();
+  }
+  function autoEnd() {
+    if (autoRun && autoRun.timer) clearTimeout(autoRun.timer);
+    autoRun = null;
+    refreshAbout();
+  }
+  function autoFail(msg) { autoEnd(); U.toast(msg, 'error'); }
+  function autoStep() {
+    if (!autoRun || !status) return;
+    if (!status.checkedAt || status.checkedAt < autoRun.since) return; // launcher has not answered yet
+    const st = status.state;
+    if (st === 'checking' || st === 'idle') return;
+    if (st === 'downloading') {
+      if (autoRun.lastState !== 'downloading') {
+        autoRun.lastState = 'downloading';
+        U.toast('Version ' + (status.version || '') + ' found on GitHub. Downloading...', 'ok');
+        clearTimeout(autoRun.timer);
+        autoRun.timer = setTimeout(() => autoFail('The download is slow. It continues in the background; press Update Now again in a few minutes.'), 15 * 60000);
+      }
+      return;
     }
-    if (!(await U.confirm('Restart PicklePOS now to install version ' + (status ? status.version : '') + '? It takes a few seconds. Your data is kept.', 'Restart Now'))) return;
+    if (st === 'offline') return autoFail('No internet connection: ' + (status.message || 'GitHub could not be reached.'));
+    if (st === 'error') return autoFail('Update check failed: ' + (status.message || 'unknown error'));
+    if (isReady()) {
+      autoEnd();
+      U.toast('Version ' + status.version + ' downloaded. Installing now...', 'ok');
+      return POS.restartForUpdate(true);
+    }
+    // 'current', or 'ready' with nothing newer
+    autoEnd();
+    U.toast('PicklePOS ' + POS.version + ' is already the latest version.', 'ok');
+  }
+  window.addEventListener('online', refreshAbout);
+  window.addEventListener('offline', refreshAbout);
+
+  POS.restartForUpdate = async function (auto) {
+    if (POS.cart && POS.cart.lines.length && POS.cartDirty) {
+      return U.toast('Finish or save the current order first, then press Update Now again.', 'error');
+    }
+    if (!auto && !(await U.confirm('Restart PicklePOS now to install version ' + (status ? status.version : '') + '? It takes a few seconds. Your data is kept.', 'Restart Now'))) return;
     document.body.appendChild(U.h('<div class="restarting"><span class="logo-ball"></span><b>Updating PicklePOS...</b><span>The app will open again by itself.</span></div>'));
     signal('restart');
     // If no launcher reacts (app opened another way), explain what to do

@@ -222,13 +222,18 @@
     const box = f('st-about');
     if (!box) return;
     const u = POS.updateInfo();
-    box.innerHTML = '<p>PicklePOS version <b>' + U.esc(POS.version) + '</b></p><div class="update-box ' + u.cls + '">' + u.html + '</div>' +
-      '<div class="toolbar"><button class="btn" id="a-check"' + (u.launcher ? '' : ' disabled') + '>Check for Updates Now</button>' +
-      (u.ready ? '<button class="btn primary" id="a-restart">Restart to Update</button>' : '') + '</div>' +
-      '<p class="muted small">When the laptop has internet, PicklePOS checks for a new version every few hours and downloads it in the background. ' +
-      'It is installed the next time the app restarts. Your sales, menu and settings are kept.</p>';
+    const busy = POS.updateBusy && POS.updateBusy();
+    const online = navigator.onLine;
+    box.innerHTML = '<p>PicklePOS version <b>' + U.esc(POS.version) + '</b> &middot; Internet: <b>' + (online ? 'connected' : 'not connected') + '</b></p>' +
+      '<div class="update-box ' + u.cls + '">' + u.html + '</div>' +
+      '<div class="toolbar"><button class="btn primary" id="a-update"' + (u.launcher && online && !busy ? '' : ' disabled') + '>' +
+      (busy ? 'Checking GitHub...' : (u.ready ? 'Install Update Now' : 'Update Now')) + '</button>' +
+      '<button class="btn" id="a-check"' + (u.launcher && !busy ? '' : ' disabled') + '>Check Only</button></div>' +
+      '<p class="muted small"><b>Update Now</b> checks GitHub for a newer PicklePOS, downloads it and installs it by itself: the app closes and opens again ' +
+      'in a few seconds (finish the current order first). PicklePOS also checks every few hours on its own while it has internet. ' +
+      'Your sales, menu, photos and settings are always kept.</p>';
+    if (U.$('#a-update', box)) U.$('#a-update', box).onclick = () => POS.updateNow();
     if (U.$('#a-check', box)) U.$('#a-check', box).onclick = () => { POS.checkUpdates(); U.toast('Checking for updates...', ''); };
-    if (U.$('#a-restart', box)) U.$('#a-restart', box).onclick = () => POS.restartForUpdate();
   }
 
   /* ---------- backup ---------- */

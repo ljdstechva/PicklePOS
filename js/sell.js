@@ -466,16 +466,21 @@
     const o = POS.cart;
     const d = o.discount || {};
     const vat = S.settings.vatRegistered;
+    o.lines.forEach((l) => { if (!l.id) l.id = U.uid(); });   // items are ticked by id
+    const itemRows = o.lines.map((l) => '<label class="chk"><input type="checkbox" data-line="' + l.id + '"> ' +
+      (l.kind === 'court' ? U.esc(l.name) + ' <span class="muted small">(court time)</span>' : l.qty + ' &times; ' + U.esc(l.name)) +
+      ' <span class="muted small">' + U.money(C.lineAmount(l)) + '</span></label>').join('');
     const body = U.h('<div><div class="seg" id="d-type">' +
       [['none', 'None'], ['senior', 'Senior Citizen'], ['pwd', 'PWD'], ['custom', 'Other']].map((x) =>
         '<button type="button" data-t="' + x[0] + '">' + x[1] + '</button>').join('') + '</div>' +
-      '<div id="d-sp"><div class="row2"><label class="f">Total guests on this bill<input id="d-pax" type="number" min="1" step="1"></label>' +
+      '<div id="d-sp"><div class="f-label">Which items are for the Senior/PWD? <span class="muted small">(their own meal and drinks only)</span></div>' +
+      '<div id="d-items" style="max-height:170px;overflow:auto;padding:2px 0 6px">' + itemRows + '</div>' +
+      '<div id="d-split"><div class="row2"><label class="f">Total guests on this bill<input id="d-pax" type="number" min="1" step="1"></label>' +
       '<label class="f">How many are Senior/PWD<input id="d-cnt" type="number" min="1" step="1"></label></div>' +
+      '<label class="chk"><input type="checkbox" id="d-court"> Also apply to court fees</label></div>' +
       '<div class="row2"><label class="f">Name on ID<input id="d-holder" type="text"></label>' +
       '<label class="f">ID number<input id="d-id" type="text"></label></div>' +
-      '<label class="chk"><input type="checkbox" id="d-court"> Also apply to court fees</label>' +
-      '<p class="muted small">20% off the Senior/PWD\'s share of the bill' + (vat ? ', plus VAT exemption' : '') +
-      '. Share = bill &divide; guests &times; Senior/PWD count.</p></div>' +
+      '<p class="muted small" id="d-how"></p></div>' +
       '<div id="d-cu"><div class="row2"><label class="f">Type<select id="d-mode"><option value="pct">Percent (%)</option>' +
       '<option value="amt">Fixed amount</option></select></label><label class="f">Value<input id="d-val" type="number" min="0" step="0.01"></label></div>' +
       '<label class="f">Reason<input id="d-reason" type="text" placeholder="e.g. Promo, Member, Owner\'s guest"></label></div>' +
@@ -490,19 +495,27 @@
     f('d-mode').value = d.mode || 'pct';
     f('d-val').value = d.value || '';
     f('d-reason').value = d.reason || '';
+    U.$$('[data-line]', body).forEach((c) => { c.checked = (d.lineIds || []).indexOf(c.getAttribute('data-line')) >= 0; });
+    const ticked = () => U.$$('[data-line]', body).filter((c) => c.checked).map((c) => c.getAttribute('data-line'));
 
     function read() {
       if (type === 'none') return null;
       if (type === 'custom') return { type: 'custom', mode: f('d-mode').value, value: +f('d-val').value || 0, reason: f('d-reason').value.trim() };
       return {
         type: type, pax: Math.max(1, Math.floor(+f('d-pax').value || 1)), count: Math.max(1, Math.floor(+f('d-cnt').value || 1)),
-        holder: f('d-holder').value.trim(), idNo: f('d-id').value.trim(), includeCourt: f('d-court').checked
+        holder: f('d-holder').value.trim(), idNo: f('d-id').value.trim(), includeCourt: f('d-court').checked, lineIds: ticked()
       };
     }
     function draw() {
       U.$$('#d-type button', body).forEach((b) => b.classList.toggle('on', b.getAttribute('data-t') === type));
       f('d-sp').classList.toggle('hidden', type !== 'senior' && type !== 'pwd');
       f('d-cu').classList.toggle('hidden', type !== 'custom');
+      const own = ticked().length;
+      f('d-split').classList.toggle('hidden', own > 0);
+      f('d-how').innerHTML = own ?
+        '20% off the <b>' + own + ' ticked item' + (own > 1 ? 's' : '') + '</b> only' + (vat ? ', plus VAT exemption on them' : '') + '. The rest of the bill is charged in full.' :
+        'No items ticked, so the bill is divided equally: 20% off (bill &divide; guests &times; Senior/PWD count)' + (vat ? ', plus VAT exemption' : '') +
+        '. Tick the Senior/PWD\'s own meal above to discount only that.';
       const t = C.totals(Object.assign({}, o, { discount: read() }));
       f('d-prev').innerHTML = 'Subtotal ' + U.money(t.subtotal) +
         (t.vatExempt ? ' &middot; VAT exempt -' + U.money(t.vatExempt) : '') +
@@ -518,7 +531,7 @@
           const nd = read();
           if (nd && nd.type !== 'custom') {
             if (!nd.idNo || !nd.holder) { U.toast('Enter the name and ID number from the Senior/PWD ID', 'error'); return false; }
-            if (nd.count > nd.pax) { U.toast('Senior/PWD count cannot be more than total guests', 'error'); return false; }
+            if (!nd.lineIds.length && nd.count > nd.pax) { U.toast('Senior/PWD count cannot be more than total guests', 'error'); return false; }
           }
           if (nd && nd.type === 'custom') {
             if (!(nd.value > 0)) { U.toast('Enter the discount value', 'error'); return false; }
