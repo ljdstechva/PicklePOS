@@ -23,6 +23,9 @@
   // Without the launcher (app opened without Start POS.bat) a plain browser window is used instead.
   M.open = function () {
     if (launcher()) {
+      if (POS.launcherStale && POS.launcherStale()) {
+        return U.toast('One more step after the update: close PicklePOS and open it again from the desktop shortcut, then press Messenger.', 'warn');
+      }
       POS.signalLauncher('msg:' + encodeURIComponent(M.url()), 3000);
       const st = M.state();
       U.toast(st.open ? 'Messenger panel tucked away. Press again to bring it back.' : 'Opening Messenger...', '');

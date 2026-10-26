@@ -119,22 +119,68 @@
     document.body.appendChild(ov);
     return ov;
   };
+  // ok = true: "Done" (green). ok = false: the message in red. ok = 'sent': amber "Sent to the printer"
+  // (used when the launcher could not confirm the job finished).
   P.donePrinting = function (ok, msg) {
+    clearTimeout(trackTimer);
     const ov = document.getElementById('print-ov');
     if (!ov) return;
-    ov.classList.add(ok ? 'done' : 'failed');
+    ov.classList.add(ok === true ? 'done' : (ok === 'sent' ? 'sent' : 'failed'));
     const t = ov.querySelector('.p-text');
-    if (t) t.innerHTML = ok ? '<span class="p-check">&#10003;</span> Done' : U.esc(msg || 'Printing failed');
+    if (t) t.innerHTML = ok === true ? '<span class="p-check">&#10003;</span> Done' :
+      ok === 'sent' ? '<span class="p-check sent">&#10003;</span> ' + U.esc(msg || 'Sent to the printer') : U.esc(msg || 'Printing failed');
     clearTimeout(ovTimer);
-    ovTimer = setTimeout(() => P.hidePrinting(), ok ? 1400 : 2800);
+    ovTimer = setTimeout(() => P.hidePrinting(), ok === true ? 1400 : (ok === 'sent' ? 2200 : 3500));
   };
   P.hidePrinting = function (now) {
+    clearTimeout(trackTimer);
     const ov = document.getElementById('print-ov');
     if (!ov) return;
     clearTimeout(ovTimer);
     if (now || !POS.anim()) { ov.remove(); return; }
     ov.classList.add('out');
     setTimeout(() => { if (ov.parentNode) ov.remove(); }, 320);
+  };
+
+  /* ---- After Chrome has handed the job to Windows, follow it in the print queue through the
+     launcher (print-status.js): "Done" only once the job has really gone to the printer; printer
+     problems (no paper, cover open, offline) are shown instead. ---- */
+  let trackTimer = null;
+  function loadPrintStatus(cb) {
+    const old = document.getElementById('print-status');
+    if (old) old.remove();
+    window.POS_PRINT = null;
+    const sc = document.createElement('script');
+    sc.id = 'print-status';
+    sc.src = 'print-status.js?t=' + Date.now();
+    sc.onload = () => cb(window.POS_PRINT || null);
+    sc.onerror = () => cb(null);
+    document.head.appendChild(sc);
+  }
+  P.trackPrinting = function (t0) {
+    if (!(POS.launcherPresent && POS.launcherPresent()) || (POS.launcherStale && POS.launcherStale())) return P.donePrinting(true);
+    const ov = document.getElementById('print-ov');
+    if (!ov) return;
+    const txt = ov.querySelector('.p-text');
+    const started = Date.now();
+    let waitingSince = 0;
+    const step = () => {
+      loadPrintStatus((st) => {
+        if (!document.getElementById('print-ov')) return;
+        const mine = !!(st && st.since && Math.abs(+st.since - t0) < 20000);
+        if (mine && st.state === 'error') return P.donePrinting(false, 'Printer problem: ' + (st.detail || 'check the printer') + '. Reprint when fixed.');
+        if (mine && st.state === 'done') return P.donePrinting(true);
+        if (mine && st.state === 'printing') { waitingSince = 0; if (txt) txt.textContent = 'Printing on ' + (st.printer || 'the printer') + '...'; }
+        else if (mine && st.state === 'waiting') {
+          // the job is not in the queue: still spooling, or already finished and gone
+          if (!waitingSince) waitingSince = Date.now();
+          if (Date.now() - waitingSince > 7000) return P.donePrinting(true);
+        }
+        if (Date.now() - started > 30000) return P.donePrinting('sent');
+        trackTimer = setTimeout(step, 600);
+      });
+    };
+    trackTimer = setTimeout(step, 400);
   };
 
   // Sends HTML to the default printer through a hidden frame, showing the "Printing..." overlay.
@@ -156,10 +202,13 @@
       '</style></head><body>' + inner + '<div class="feed"></div><div class="c">.</div></body></html>');
     d.close();
     const go = () => {
+      const t0 = Date.now();
       try {
+        // tell the launcher a print is coming so it can follow the job in the Windows print queue
+        if (POS.signalLauncher && POS.launcherPresent && POS.launcherPresent()) POS.signalLauncher('print:' + t0, 6000);
         f.contentWindow.focus();
         f.contentWindow.print();   // returns once Windows has the job (silent in kiosk mode)
-        P.donePrinting(true);
+        P.trackPrinting(t0);
       } catch (e) {
         U.toast('Printing failed: ' + e.message, 'error');
         P.donePrinting(false, 'Printing failed: ' + e.message);

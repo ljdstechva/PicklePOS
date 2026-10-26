@@ -7,5 +7,7 @@ update-status.js
 update-status.js.tmp
 messenger-status.js
 messenger-status.js.tmp
+print-status.js
+print-status.js.tmp
 # Test tool output
 .playwright-mcp/

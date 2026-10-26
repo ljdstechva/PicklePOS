@@ -199,12 +199,16 @@ MESSENGER AT THE COUNTER
 ---------------------------------------------------------------------
   Bookings and payments often arrive by Facebook Messenger, so the
   side bar has a "Messenger" button with the number of unread chats.
-    1. Press "Messenger". Your inbox opens as a floating panel at the
-       bottom right of the screen (no address bar). Log in there once;
-       it remembers you. Press the button again to bring the panel
-       back, or to tuck it away when it is in front. The number on the
-       button follows the "(3)" that Facebook shows in the window
-       title. A sound plays when new chats arrive.
+    1. Press "Messenger". Your inbox opens as a floating phone-sized
+       panel at the bottom right of the screen, in mobile view (no
+       address bar). Log in there once; it remembers you. Press the
+       button again to bring the panel back, or to tuck it away when
+       it is in front. The panel closes together with the POS. The
+       number on the button follows the "(3)" that Facebook shows in
+       the window title. A sound plays when new chats arrive.
+       If Facebook shows a "get the app" page instead of your chats,
+       set the inbox link in Settings > Messenger to
+       https://m.facebook.com/messages/
     2. Settings > Messenger (owner): choose which inbox the button
        opens - www.messenger.com (personal or Page chats) or the Page
        inbox in Meta Business Suite

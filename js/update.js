@@ -77,6 +77,7 @@
   function changed() {
     autoStep();
     POS.syncUpdateButton();
+    staleNotice();
     // A new version was found and downloaded on its own: say so once
     if (isReady() && !autoRun && toastedFor !== status.version) {
       toastedFor = status.version;
@@ -104,6 +105,18 @@
   }
   POS.signalLauncher = signal;
   POS.launcherPresent = () => !!(status && status.launcher);
+  // The launcher (launcher\PicklePOS.ps1) keeps running across in-app updates; since 1.2.2 it hands
+  // over to its new copy by itself, but an older launcher cannot, so the app asks for one fresh start.
+  POS.launcherStale = () => !!(status && status.launcher && (!status.launcherVersion || POS.newerVersion(POS.version, status.launcherVersion)));
+  let staleShown = false;
+  function staleNotice() {
+    if (!POS.launcherStale() || staleShown || document.getElementById('stale-bar')) return;
+    staleShown = true;
+    const bar = U.h('<div id="stale-bar" class="upd-bar"><span class="upd-ico">!</span><span>Update installed. To finish it, <b>close PicklePOS and open it again from the desktop shortcut</b>.</span>' +
+      '<button class="btn sm" data-a="ok">OK</button></div>');
+    U.$('[data-a=ok]', bar).onclick = () => bar.remove();
+    document.body.appendChild(bar);
+  }
 
   POS.checkUpdates = function () {
     fastUntil = Date.now() + 120000;

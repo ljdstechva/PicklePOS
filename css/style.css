@@ -458,5 +458,8 @@ label.inline input { width: auto; }
 .print-ov.done .p-paper, .print-ov.failed .p-paper, .no-anim .printer .p-paper { animation: none; transform: scaleY(1); opacity: 1; }
 .p-check { display: inline-block; width: 26px; height: 26px; line-height: 26px; border-radius: 50%; background: var(--ok); color: #fff; margin-right: 6px; font-size: 15px; vertical-align: -3px; }
 .print-ov.done .p-text { color: var(--ok); }
-.print-ov.failed .p-text { color: var(--danger); font-size: 14px; }
+.print-ov.sent .p-text { color: #a86b00; }
+.print-ov.sent .p-paper { animation: none; transform: scaleY(1); opacity: 1; }
+.p-check.sent { background: #a86b00; }
+.print-ov.failed .p-text { color: var(--danger); font-size: 14px; max-width: 300px; }
 .nav button#msg-btn.on { background: #0a7cff; box-shadow: 0 6px 14px rgba(10,124,255,.28); }

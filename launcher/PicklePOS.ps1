@@ -27,9 +27,10 @@ $Upd = Join-Path $App 'updates'
 $Ready = Join-Path $Upd 'ready'
 $StatusFile = Join-Path $App 'update-status.js'
 $MsgFile = Join-Path $App 'messenger-status.js'
+$PrintFile = Join-Path $App 'print-status.js'
 $LogFile = Join-Path $Upd 'update-log.txt'
 # Never copied by an update, never backed up: user data and update work folders
-$Skip = @('data', 'test-data', 'updates', 'update-status.js', 'messenger-status.js', '.git', '.complete')
+$Skip = @('data', 'test-data', 'updates', 'update-status.js', 'messenger-status.js', 'print-status.js', '.git', '.complete')
 if (-not (Test-Path $Upd)) { New-Item -ItemType Directory -Path $Upd | Out-Null }
 
 function Log([string]$msg) {
@@ -62,7 +63,7 @@ function Js([string]$s) {
 function Write-Status([string]$state, [string]$version, [string]$notes, [string]$message) {
   try {
     $ms = [long](((Get-Date).ToUniversalTime() - (New-Object DateTime 1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds)
-    $js = 'window.POS_UPDATE = {"launcher":true,"state":' + (Js $state) + ',"version":' + (Js $version) +
+    $js = 'window.POS_UPDATE = {"launcher":true,"launcherVersion":' + (Js $script:LauncherVersion) + ',"state":' + (Js $state) + ',"version":' + (Js $version) +
       ',"notes":' + (Js $notes) + ',"message":' + (Js $message) + ',"checkedAt":' + $ms + '};'
     $tmp = $StatusFile + '.tmp'
     [IO.File]::WriteAllText($tmp, $js)
@@ -77,7 +78,12 @@ function Write-Status([string]$state, [string]$version, [string]$notes, [string]
 #      messenger-status.js is rewritten every few seconds; the app shows the number on the button. ----
 $script:WinApiOk = $null
 $script:PosPid = 0
-$MsgTitleMatch = 'Messenger|Facebook|Meta Business|messenger\.com|facebook\.com'
+$script:MsgProc = $null
+$script:Installed = $false
+$script:LauncherVersion = ''
+# The panel is its own small Chrome (own profile, phone-style identity so Facebook serves the mobile layout)
+$MsgUA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'
+$MsgTitleMatch = 'Messenger|Facebook|Meta Business|messenger\.com|facebook\.com|Chats'
 function Load-WinApi {
   if ($script:WinApiOk -ne $null) { return $script:WinApiOk }
   try {
@@ -134,27 +140,37 @@ function Get-Windows {
   }
   return @(Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { New-Object PSObject -Property @{ Handle = $_.MainWindowHandle; Pid = $_.Id; Title = $_.MainWindowTitle } })
 }
-# The Messenger window that belongs to the POS browser (the one Toggle-Messenger opened)
+# Where the panel goes: bottom right of the screen, above the taskbar
+function Get-PanelRect {
+  Add-Type -AssemblyName System.Windows.Forms
+  $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  $wd = 400; $ht = [Math]::Min(640, $area.Height - 16)
+  return @{ X = $area.Right - $wd - 10; Y = $area.Bottom - $ht - 8; W = $wd; H = $ht }
+}
+# The panel window: the one opened by Toggle-Messenger (its own Chrome, profile data\messenger-profile)
 function Find-MsgWindow {
-  if (-not $script:PosPid) { return $null }
-  foreach ($w in (Get-Windows)) {
-    if ($w.Pid -eq $script:PosPid -and $w.Title -match $MsgTitleMatch -and $w.Title -notmatch 'PicklePOS') { return $w }
+  $cands = @(Get-Windows | Where-Object { $_.Title -match $MsgTitleMatch -and $_.Title -notmatch 'PicklePOS' })
+  if (-not $cands.Count) { return $null }
+  if ($script:MsgProc) {
+    foreach ($c in $cands) { if ($c.Pid -eq $script:MsgProc.Id) { return $c } }
+  }
+  foreach ($c in $cands) {
+    $cl = ''
+    try { $cl = [string](Get-WmiObject Win32_Process -Filter ("ProcessId=" + $c.Pid)).CommandLine } catch { }
+    if ($cl -match 'messenger-profile') { return $c }
   }
   return $null
 }
-# Dock the window at the bottom right of the screen (above the taskbar) and bring it to the front
+# Dock the panel and bring it to the front
 function Show-MsgWindow($w) {
   try {
-    Add-Type -AssemblyName System.Windows.Forms
-    $area = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    $wd = 400; $ht = [Math]::Min(640, $area.Height - 16)
-    $x = $area.Right - $wd - 10; $y = $area.Bottom - $ht - 8
-    [PPWindows]::ShowWindow($w.Handle, 9) | Out-Null                                                # SW_RESTORE
-    [PPWindows]::SetWindowPos($w.Handle, [IntPtr]::Zero, $x, $y, $wd, $ht, [uint32]0x0040) | Out-Null   # SWP_SHOWWINDOW
+    $r = Get-PanelRect
+    [PPWindows]::ShowWindow($w.Handle, 9) | Out-Null                                                          # SW_RESTORE
+    [PPWindows]::SetWindowPos($w.Handle, [IntPtr]::Zero, $r.X, $r.Y, $r.W, $r.H, [uint32]0x0040) | Out-Null   # SWP_SHOWWINDOW
     [PPWindows]::SetForegroundWindow($w.Handle) | Out-Null
   } catch { Log ('Messenger window: ' + $_.Exception.Message) }
 }
-# One press on the app's Messenger button: open the inbox window, or bring it to the front,
+# One press on the app's Messenger button: open the panel, or bring it to the front,
 # or (if it is already in front) tuck it away to the taskbar
 function Toggle-Messenger([string]$msgUrl) {
   if (-not (Load-WinApi)) { Log 'Messenger window: Windows API not available'; return }
@@ -166,26 +182,33 @@ function Toggle-Messenger([string]$msgUrl) {
     else { Show-MsgWindow $w }
   } else {
     try {
+      $r = Get-PanelRect
+      if (-not (Test-Path $MsgProfile)) { New-Item -ItemType Directory -Path $MsgProfile | Out-Null }
       $psi2 = New-Object Diagnostics.ProcessStartInfo $browser
-      $psi2.Arguments = '--user-data-dir="' + $profileDir + '" --app="' + $msgUrl + '" --window-size=400,640 --no-first-run'
+      $psi2.Arguments = '--user-data-dir="' + $MsgProfile + '" --app="' + $msgUrl + '" --window-size=' + $r.W + ',' + $r.H +
+        ' --window-position=' + $r.X + ',' + $r.Y + ' --user-agent="' + $MsgUA + '" --no-first-run --no-default-browser-check --disable-background-mode --disable-features=Translate'
       $psi2.UseShellExecute = $false
-      [Diagnostics.Process]::Start($psi2) | Out-Null
+      $script:MsgProc = [Diagnostics.Process]::Start($psi2)
     } catch { Log ('Could not open Messenger: ' + $_.Exception.Message); return }
-    for ($i = 0; $i -lt 25; $i++) { Start-Sleep -Milliseconds 400; $w = Find-MsgWindow; if ($w) { break } }
+    for ($i = 0; $i -lt 30; $i++) { Start-Sleep -Milliseconds 400; $w = Find-MsgWindow; if ($w) { break } }
     if ($w) { Show-MsgWindow $w } else { Log 'Messenger window did not appear' }
   }
   Write-MsgStatus
 }
+function Close-Messenger {
+  try { if ($script:MsgProc -and -not $script:MsgProc.HasExited) { $script:MsgProc.CloseMainWindow() | Out-Null } } catch { }
+}
 function Write-MsgStatus {
   $found = $false; $open = $false; $count = 0; $title = ''
   try {
+    $panel = Find-MsgWindow
+    if ($panel) {
+      if ($script:WinApiOk) { if (-not [PPWindows]::IsIconic($panel.Handle)) { $open = $true } } else { $open = $true }
+    }
     foreach ($w in (Get-Windows)) {
       $t = $w.Title
       if ($t -notmatch $MsgTitleMatch -or $t -match 'PicklePOS') { continue }
       $found = $true
-      if ($script:PosPid -and $w.Pid -eq $script:PosPid) {
-        if ($script:WinApiOk) { if (-not [PPWindows]::IsIconic($w.Handle)) { $open = $true } } else { $open = $true }
-      }
       if ($t -match '^\((\d+)\)') { $n = [int]$matches[1]; if ($n -gt $count) { $count = $n; $title = $t } }
       elseif (-not $title) { $title = $t }
     }
@@ -197,6 +220,55 @@ function Write-MsgStatus {
     [IO.File]::WriteAllText($tmp, $js)
     if (Test-Path $MsgFile) { Remove-Item $MsgFile -Force }
     Move-Item $tmp $MsgFile
+  } catch { }
+}
+
+# ---- Printing: watch the Windows print queue after the app signals "[pp:print:<ms>]", so the app
+#      can say "Done" only when the job has really gone to the printer (and show printer problems). ----
+$script:PrintSig = 0
+$script:PrintSince = [DateTime]::MinValue
+$script:PrintWatchUntil = [DateTime]::MinValue
+$script:PrintIdleWritten = $true
+function Write-PrintStatus {
+  try {
+    $state = 'idle'; $detail = ''; $doc = ''; $pname = ''
+    if ((Get-Date) -lt $script:PrintWatchUntil) {
+      $printer = Get-WmiObject Win32_Printer -Filter 'Default=TRUE' | Select-Object -First 1
+      if ($printer) { $pname = [string]$printer.Name }
+      $active = $false; $seen = $false; $err = ''
+      foreach ($j in @(Get-WmiObject Win32_PrintJob)) {
+        if ($pname -and -not ([string]$j.Name).StartsWith($pname + ',')) { continue }
+        $ts = [DateTime]::MinValue
+        try { $ts = [Management.ManagementDateTimeConverter]::ToDateTime($j.TimeSubmitted) } catch { }
+        if ($ts -lt $script:PrintSince.AddSeconds(-5)) { continue }
+        $seen = $true; $doc = [string]$j.Document
+        $st = [string]$j.JobStatus
+        if ($st -match 'Error|Paper|Offline|Jam|Intervention|Blocked') { $err = $st }
+        elseif ($st -match 'Printed|Complete|Deleting') { }
+        else { $active = $true }
+      }
+      if ($err) { $state = 'error'; $detail = $err }
+      elseif ($active) { $state = 'printing' }
+      elseif ($seen) { $state = 'done' }
+      else { $state = 'waiting' }
+      if ($printer -and $state -ne 'done') {
+        $codes = @{ 3 = 'Paper is low'; 4 = 'Out of paper'; 7 = 'Cover is open'; 8 = 'Paper jam'; 9 = 'Printer is offline'; 10 = 'Printer needs attention' }
+        $ps = 0; try { $ps = [int]$printer.DetectedErrorState } catch { }
+        if ($codes.ContainsKey($ps)) { $state = 'error'; $detail = $codes[$ps] }
+        if ($printer.WorkOffline) { $state = 'error'; $detail = 'Printer is set to "Use Printer Offline"' }
+      }
+      $script:PrintIdleWritten = $false
+    } else {
+      if ($script:PrintIdleWritten) { return }
+      $script:PrintIdleWritten = $true
+    }
+    $ms = [long](((Get-Date).ToUniversalTime() - (New-Object DateTime 1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds)
+    $js = 'window.POS_PRINT = {"state":' + (Js $state) + ',"printer":' + (Js $pname) + ',"document":' + (Js $doc) + ',"detail":' + (Js $detail) +
+      ',"since":' + $script:PrintSig + ',"at":' + $ms + '};'
+    $tmp = $PrintFile + '.tmp'
+    [IO.File]::WriteAllText($tmp, $js)
+    if (Test-Path $PrintFile) { Remove-Item $PrintFile -Force }
+    Move-Item $tmp $PrintFile
   } catch { }
 }
 
@@ -305,6 +377,7 @@ function Install-Update {
     Remove-Item $Ready -Recurse -Force
     Write-Status 'current' $new '' ''
     Log ('Installed version ' + $new + ' (was ' + $old + ')')
+    $script:Installed = $true
   } catch {
     Log ('Install failed, restoring version ' + $old + ': ' + $_.Exception.Message)
     try { Copy-Tree $prev $App } catch { Log ('Restore failed: ' + $_.Exception.Message) }
@@ -332,6 +405,8 @@ function Profile-InUse([string]$profileDir) {
 }
 
 # ---------------------------------------------------------------------
+# The version of the files this launcher was started from (the app checks it is not stale)
+$script:LauncherVersion = Get-Field (Read-Text (Join-Path $App 'version.js')) 'POS_VERSION'
 if ($CheckOnly) { Check-Update; exit }
 
 $browser = Find-Browser
@@ -342,6 +417,7 @@ if (-not $browser) {
 }
 $dataPath = Join-Path $App $DataDir
 $profileDir = Join-Path $dataPath 'browser-profile'
+$MsgProfile = Join-Path $dataPath 'messenger-profile'
 if (-not (Test-Path $dataPath)) { New-Item -ItemType Directory -Path $dataPath | Out-Null }
 $url = (New-Object Uri (Join-Path $App 'index.html')).AbsoluteUri
 $flags = '--user-data-dir="' + $profileDir + '" --app="' + $url + '" --start-maximized --no-first-run --no-default-browser-check --disable-features=Translate --disable-background-mode'
@@ -351,8 +427,18 @@ if ($ExtraFlags) { $flags = $flags + ' ' + $ExtraFlags }
 while ($true) {
   $inUse = Profile-InUse $profileDir
   if (-not $inUse) {
+    $script:Installed = $false
     Install-Update
     Write-Status 'idle' '' '' ''
+    if ($script:Installed) {
+      # This launcher file may have changed too: hand over to a fresh copy of it and leave
+      Log 'Handing over to the updated launcher'
+      $a = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $MyInvocation.MyCommand.Path + '" -DataDir "' + $DataDir + '"'
+      if ($NoKiosk) { $a += ' -NoKiosk' }
+      if ($ExtraFlags) { $a += ' -ExtraFlags "' + $ExtraFlags + '"' }
+      Start-Process -FilePath 'powershell.exe' -ArgumentList $a -WindowStyle Hidden
+      exit
+    }
   }
   $psi = New-Object Diagnostics.ProcessStartInfo $browser
   $psi.Arguments = $flags
@@ -370,7 +456,7 @@ while ($true) {
   Write-MsgStatus
   while (-not $proc.HasExited) {
     $msgTick++
-    if ($msgTick % 3 -eq 0) { Write-MsgStatus }   # unread Messenger chats, about every 6 seconds
+    if ($msgTick % 6 -eq 0) { Write-MsgStatus }   # unread Messenger chats, about every 6 seconds
     $title = ''
     try { $proc.Refresh(); $title = [string]$proc.MainWindowTitle } catch { }
     if ($title -match '\[pp:msg(?::([^\]]*))?\]' -and ((Get-Date) -gt $lastMsg.AddSeconds(5))) {
@@ -379,6 +465,15 @@ while ($true) {
       if ($matches.Count -gt 1 -and $matches[1]) { try { $u = [Uri]::UnescapeDataString($matches[1]) } catch { } }
       try { Toggle-Messenger $u } catch { Log ('Messenger: ' + $_.Exception.Message) }
     }
+    if ($title -match '\[pp:print:(\d+)\]') {
+      $sig = [long]$matches[1]
+      if ($sig -ne $script:PrintSig) {
+        $script:PrintSig = $sig
+        $script:PrintSince = (New-Object DateTime 1970, 1, 1, 0, 0, 0, 0).AddMilliseconds($sig).ToLocalTime()
+        $script:PrintWatchUntil = (Get-Date).AddSeconds(45)
+      }
+    }
+    Write-PrintStatus   # only does work while a print is being watched
     if ($title.Contains('[pp:restart]')) {
       Log 'Restart requested by the app'
       $restart = $true
@@ -394,9 +489,11 @@ while ($true) {
       try { Check-Update } catch { Log ('Check error: ' + $_.Exception.Message) }
       $nextCheck = (Get-Date).AddHours($CheckEveryHours)
     }
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
   }
   if (-not $restart) { break }
   # Give Chrome a moment to release the profile, then install and reopen
   for ($i = 0; $i -lt 20 -and (Profile-InUse $profileDir); $i++) { Start-Sleep -Milliseconds 500 }
 }
+# The POS was closed: close the Messenger panel with it
+Close-Messenger
