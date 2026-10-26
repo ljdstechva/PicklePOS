@@ -1,4 +1,4 @@
 /* PicklePOS version. Raise it (e.g. 1.1.0 -> 1.1.1) and push to GitHub to deliver an update:
    laptops running Start POS.bat download it in the background and install it on the next restart. */
-window.POS_VERSION = '1.4.0';
-window.POS_NOTES = 'Your Facebook Page inbox inside the Messenger tab: chats, replies, photos. One-press Page connection in Settings.';
+window.POS_VERSION = '1.4.1';
+window.POS_NOTES = 'The app reopens by itself reliably after an update.';

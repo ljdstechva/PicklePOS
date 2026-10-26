@@ -498,6 +498,13 @@ while ($true) {
   $proc = [Diagnostics.Process]::Start($psi)
   # Already open? Chrome hands over to the open window and this launcher is not needed
   if ($inUse) { exit }
+  # Right after an update the previous browser may still be shutting down: if the new one quits within a
+  # few seconds it only handed its request to the dying one, so open it again
+  for ($try = 0; $try -lt 3 -and $proc.WaitForExit(4000); $try++) {
+    Log ('Browser closed right away (try ' + ($try + 1) + '), opening it again')
+    Start-Sleep -Seconds 3
+    $proc = [Diagnostics.Process]::Start($psi)
+  }
 
   $restart = $false
   $nextCheck = (Get-Date).AddSeconds($FirstCheckSeconds)
