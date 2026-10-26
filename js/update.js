@@ -7,7 +7,9 @@
   'use strict';
   const U = POS.util;
   POS.version = window.POS_VERSION || '0.0.0';
-  let status = null, fastUntil = 0, lastPoll = 0, hiddenFor = '', autoRun = null;
+  // Polls every 3 s for the first 2.5 minutes after opening (the launcher checks GitHub ~20 s after
+  // start-up), then every minute; toastedFor remembers which version was already announced.
+  let status = null, fastUntil = Date.now() + 150000, lastPoll = 0, hiddenFor = '', autoRun = null, toastedFor = '';
 
   // true if version a is newer than b ("1.10.0" > "1.9.2")
   POS.newerVersion = function (a, b) {
@@ -60,10 +62,13 @@
     const b = document.getElementById('upd-btn');
     if (!b) return;
     const ready = isReady();
+    const downloading = !!(status && status.state === 'downloading' && !autoRun);
     b.classList.remove('hidden');
     b.classList.toggle('primary', ready);
+    b.classList.toggle('has-update', ready);
     b.disabled = !!autoRun;
-    b.textContent = autoRun ? 'Checking...' : (ready ? 'Install update' : 'Update');
+    b.innerHTML = (autoRun ? 'Checking...' : (ready ? 'Install update' : (downloading ? 'Downloading...' : 'Update'))) +
+      (ready ? '<span class="badge hot" id="upd-badge">1</span>' : '');
     b.title = ready ? 'PicklePOS ' + status.version + ' is downloaded. Press to install it now (takes a few seconds).' :
       'Check GitHub for a newer PicklePOS and install it';
     b.onclick = () => POS.updateNow();
@@ -72,6 +77,12 @@
   function changed() {
     autoStep();
     POS.syncUpdateButton();
+    // A new version was found and downloaded on its own: say so once
+    if (isReady() && !autoRun && toastedFor !== status.version) {
+      toastedFor = status.version;
+      POS.sound('ding');
+      U.toast('PicklePOS ' + status.version + ' is ready. Press "Install update" in the side bar when the counter is free.', 'ok');
+    }
     const v = POS.views && POS.state.view === 'settings' && POS.views.settings;
     if (v && v.refresh) v.refresh();
     let bar = document.getElementById('upd-bar');

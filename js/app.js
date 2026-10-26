@@ -9,7 +9,7 @@
   POS.DEFAULTS = {
     bizName: 'My Pickleball Club', bizLine2: 'Courts & Cafe', address: '', contact: '', tin: '',
     logo: '', appLogo: '',
-    receiptTitle: 'ACKNOWLEDGEMENT RECEIPT', receiptNote: 'THIS IS NOT AN OFFICIAL RECEIPT',
+    receiptTitle: 'ACKNOWLEDGEMENT RECEIPT', receiptNote: '',
     footer: 'Thank you! See you on the court!',
     currency: '₱', vatRegistered: false,
     courts: [{ id: 'court1', name: 'Court 1', rate: 300 }, { id: 'court2', name: 'Court 2', rate: 300 }],
@@ -19,7 +19,8 @@
     payMethods: ['Cash', 'GCash', 'Maya', 'Bank Transfer'],
     refRequired: true,
     lastBackup: 0,
-    anim: true, sounds: true, autoLock: 0
+    anim: true, sounds: true, autoLock: 0,
+    msgUrl: 'https://www.messenger.com/', msgToken: '', msgPageName: ''
   };
 
   /* ---------- display: animations & sounds ---------- */
@@ -74,6 +75,7 @@
     menu: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5v2.5M11 3.5v2.5"/>',
     settings: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
     stock: '<path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/>',
+    messenger: '<path d="M12 3.5c-4.8 0-8.5 3.5-8.5 7.8 0 2.4 1.2 4.6 3.1 6.1V21l3.2-1.8c.7.2 1.4.3 2.2.3 4.8 0 8.5-3.5 8.5-7.8S16.8 3.5 12 3.5z"/><path d="M7.3 13.2l2.9-3.1 2.4 1.9 3.9-3.3"/>',
     lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
   };
   POS.icon = (name) => '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>';
@@ -101,6 +103,8 @@
   POS.loadAll = async function () {
     const kv = await POS.db.get('kv', 'settings');
     S.settings = Object.assign({}, POS.DEFAULTS, kv ? kv.v : {});
+    // Receipts no longer carry the "THIS IS NOT AN OFFICIAL RECEIPT" note (since 1.2.0)
+    if (S.settings.receiptNote === 'THIS IS NOT AN OFFICIAL RECEIPT') { S.settings.receiptNote = ''; await POS.saveSettings(); }
     S.users = await POS.db.all('users');
     S.categories = (await POS.db.all('categories')).sort((a, b) => a.sort - b.sort);
     S.items = await POS.db.all('items');
@@ -379,16 +383,19 @@
       '<nav class="nav">' + views.map((v) => '<button data-view="' + v + '">' + POS.icon(v) + '<span class="nav-l">' + VIEW_LABELS[v] + '</span>' +
         (v === 'tabs' ? '<span class="badge" id="tabs-badge"></span>' : '') +
         (v === 'kitchen' ? '<span class="badge hot" id="kitchen-badge"></span>' : '') +
-        (v === 'courts' ? '<span class="badge" id="courts-badge"></span>' : '') + '</button>').join('') + '</nav>' +
+        (v === 'courts' ? '<span class="badge" id="courts-badge"></span>' : '') + '</button>').join('') +
+      '<button id="msg-btn" title="Messenger">' + POS.icon('messenger') + '<span class="nav-l">Messenger</span><span class="badge hot" id="msg-badge" style="display:none"></span></button></nav>' +
       '<div class="rail-foot"><button class="btn sm warn hidden" id="backup-warn" title="Download a backup copy of your data">Backup due</button>' +
       '<button class="btn sm hidden" id="upd-btn" title="Check GitHub for a newer PicklePOS and install it">Update</button>' +
       '<span class="clock"></span><button class="rail-lock" id="lock" title="' + U.esc(S.user.name) + ' - press to lock the POS">' +
       '<span class="avatar" style="background:' + U.colorFor(S.user.name) + '">' + U.esc(U.initials(S.user.name)) + '</span>' +
       '<span>' + POS.icon('lock') + ' Lock</span></button></div></aside><main class="main" id="main"></main>';
-    U.$$('.nav button', app).forEach((b) => { b.onclick = () => POS.go(b.getAttribute('data-view')); });
+    U.$$('.nav button[data-view]', app).forEach((b) => { b.onclick = () => POS.go(b.getAttribute('data-view')); });
+    U.$('#msg-btn').onclick = () => POS.messenger.open();   // Messenger inbox in its own window
     U.$('#lock').onclick = POS.logout;
     U.$('#backup-warn').onclick = () => POS.backup();
     if (POS.syncUpdateButton) POS.syncUpdateButton();   // the Update button in the side bar (everyone may use it)
+    if (POS.messenger) POS.messenger.sync();            // unread-chat badge
     POS.updateBadges();
     POS.tick();
   };

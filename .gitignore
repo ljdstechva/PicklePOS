@@ -5,5 +5,7 @@ test-data/
 updates/
 update-status.js
 update-status.js.tmp
+messenger-status.js
+messenger-status.js.tmp
 # Test tool output
 .playwright-mcp/

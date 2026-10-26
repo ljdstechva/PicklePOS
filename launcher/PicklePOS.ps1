@@ -26,9 +26,10 @@ $App = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $Upd = Join-Path $App 'updates'
 $Ready = Join-Path $Upd 'ready'
 $StatusFile = Join-Path $App 'update-status.js'
+$MsgFile = Join-Path $App 'messenger-status.js'
 $LogFile = Join-Path $Upd 'update-log.txt'
 # Never copied by an update, never backed up: user data and update work folders
-$Skip = @('data', 'test-data', 'updates', 'update-status.js', '.git', '.complete')
+$Skip = @('data', 'test-data', 'updates', 'update-status.js', 'messenger-status.js', '.git', '.complete')
 if (-not (Test-Path $Upd)) { New-Item -ItemType Directory -Path $Upd | Out-Null }
 
 function Log([string]$msg) {
@@ -68,6 +69,62 @@ function Write-Status([string]$state, [string]$version, [string]$notes, [string]
     if (Test-Path $StatusFile) { Remove-Item $StatusFile -Force }
     Move-Item $tmp $StatusFile
   } catch { Log ('Could not write status: ' + $_.Exception.Message) }
+}
+
+# ---- Messenger: unread chats, read from the Messenger window's title ("(3) Messenger") ----
+# Written to messenger-status.js every few seconds; the app shows the number on its Messenger button.
+$script:WinApiOk = $null
+function Get-WindowTitles {
+  if ($script:WinApiOk -eq $null) {
+    try {
+      Add-Type -TypeDefinition @"
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public class PPWindows {
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextLength(IntPtr h);
+  public static List<string> Titles() {
+    List<string> r = new List<string>();
+    EnumWindows(delegate(IntPtr h, IntPtr l) {
+      if (IsWindowVisible(h)) {
+        int n = GetWindowTextLength(h);
+        if (n > 0) { StringBuilder sb = new StringBuilder(n + 1); GetWindowText(h, sb, n + 1); r.Add(sb.ToString()); }
+      }
+      return true;
+    }, IntPtr.Zero);
+    return r;
+  }
+}
+"@
+      $script:WinApiOk = $true
+    } catch { $script:WinApiOk = $false }
+  }
+  if ($script:WinApiOk) { try { return [PPWindows]::Titles() } catch { } }
+  return @(Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { $_.MainWindowTitle })
+}
+function Write-MsgStatus {
+  $found = $false; $count = 0; $title = ''
+  try {
+    foreach ($t in (Get-WindowTitles)) {
+      if ($t -notmatch 'Messenger|Facebook|Meta Business') { continue }
+      if ($t -match 'PicklePOS') { continue }
+      $found = $true
+      if ($t -match '^\((\d+)\)') { $n = [int]$matches[1]; if ($n -gt $count) { $count = $n; $title = $t } }
+      elseif (-not $title) { $title = $t }
+    }
+    $ms = [long](((Get-Date).ToUniversalTime() - (New-Object DateTime 1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds)
+    $f = 'false'; if ($found) { $f = 'true' }
+    $js = 'window.POS_MSG = {"window":' + $f + ',"count":' + $count + ',"title":' + (Js $title) + ',"at":' + $ms + '};'
+    $tmp = $MsgFile + '.tmp'
+    [IO.File]::WriteAllText($tmp, $js)
+    if (Test-Path $MsgFile) { Remove-Item $MsgFile -Force }
+    Move-Item $tmp $MsgFile
+  } catch { }
 }
 
 function New-Web {
@@ -234,7 +291,11 @@ while ($true) {
   $restart = $false
   $nextCheck = (Get-Date).AddSeconds($FirstCheckSeconds)
   $lastAsk = (Get-Date).AddMinutes(-5)
+  $msgTick = 0
+  Write-MsgStatus
   while (-not $proc.HasExited) {
+    $msgTick++
+    if ($msgTick % 3 -eq 0) { Write-MsgStatus }   # unread Messenger chats, about every 6 seconds
     $title = ''
     try { $proc.Refresh(); $title = [string]$proc.MainWindowTitle } catch { }
     if ($title.Contains('[pp:restart]')) {

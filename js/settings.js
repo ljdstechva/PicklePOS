@@ -8,12 +8,12 @@
     render: function (root) {
       el = U.h('<div class="page"><div class="page-head"><h2>Settings</h2></div><div class="settings-grid">' +
         section('Business &amp; Receipt', 'biz') + section('Courts &amp; Rates', 'courts') +
-        section('Printer', 'print') + section('Payments &amp; Tax', 'pay') +
+        section('Printer', 'print') + (POS.isOwner() ? section('Messenger', 'msg') : '') + section('Payments &amp; Tax', 'pay') +
         (POS.isOwner() ? section('Staff &amp; PINs', 'users') : '') + section('Display &amp; Sounds', 'display') +
         (POS.isOwner() ? section('Backup &amp; Restore', 'backup') : '') + section('About &amp; Updates', 'about') + '</div></div>');
       root.appendChild(el);
       drawBiz(); drawCourts(); drawPrint(); drawPay(); drawDisplay(); drawAbout();
-      if (POS.isOwner()) { drawUsers(); drawBackup(); }
+      if (POS.isOwner()) { drawUsers(); drawBackup(); drawMessenger(); }
     },
     refresh: function () { if (el) drawAbout(); },
     destroy: function () { el = null; }
@@ -234,6 +234,59 @@
       'Your sales, menu, photos and settings are always kept.</p>';
     if (U.$('#a-update', box)) U.$('#a-update', box).onclick = () => POS.updateNow();
     if (U.$('#a-check', box)) U.$('#a-check', box).onclick = () => { POS.checkUpdates(); U.toast('Checking for updates...', ''); };
+  }
+
+  /* ---------- messenger (owners only) ---------- */
+  function drawMessenger() {
+    const box = f('st-msg');
+    if (!box) return;
+    const s = S.settings;
+    box.innerHTML = '<p class="muted small" style="margin-top:0">The <b>Messenger</b> button in the side bar opens your inbox in its own window and shows the ' +
+      'number of unread chats on the button. Log in there once and keep that window open (it can stay behind the POS).</p>' +
+      '<label class="f">Inbox link the button opens<input id="m-url" type="text" placeholder="https://www.messenger.com/"></label>' +
+      '<p class="muted small">Personal or Page chats: <code>https://www.messenger.com/</code> &middot; Page inbox in Meta Business Suite: ' +
+      '<code>https://business.facebook.com/latest/inbox/all</code></p>' +
+      '<label class="f">Facebook Page access token (optional, gives the exact unread count)<input id="m-token" type="password" autocomplete="off" placeholder="Paste the Page token here"></label>' +
+      '<div class="toolbar"><button class="btn primary" id="m-save">Save</button><button class="btn" id="m-test">Test</button><button class="btn" id="m-open">Open Messenger</button></div>' +
+      '<p class="small" id="m-status"></p>' +
+      '<details class="muted small"><summary>How to get a Page access token</summary><ol>' +
+      '<li>Go to developers.facebook.com &rarr; My Apps &rarr; Create App (type: Business), any name.</li>' +
+      '<li>In the app add the <b>Messenger</b> product. Under Messenger &rarr; Settings &rarr; Access Tokens, connect your Page and press <b>Generate Token</b> ' +
+      '(permissions: pages_messaging, pages_manage_metadata, pages_read_engagement).</li>' +
+      '<li>Paste the token above, press Test, then Save. The token is stored only on this laptop.</li>' +
+      '<li>Without a token PicklePOS still shows the count from the Messenger window title.</li></ol></details>';
+    f('m-url').value = s.msgUrl || '';
+    f('m-token').value = s.msgToken || '';
+    const status = () => {
+      const el2 = f('m-status');
+      if (!el2) return;
+      const st = POS.messenger.state();
+      const chats = (n) => '<b>' + n + '</b> unread chat' + (n === 1 ? '' : 's');
+      el2.innerHTML = st.source === 'page' ? ('Connected to Page <b>' + U.esc(s.msgPageName || '') + '</b>' +
+          (st.error ? ' &middot; <span class="muted">' + U.esc(st.error) + '</span>' : (st.count === null ? ' &middot; checking...' : ' &middot; ' + chats(st.count)))) :
+        st.source === 'window' ? ('Reading the Messenger window: ' + chats(st.count)) :
+        'No Messenger window found and no Page token. Press "Open Messenger", log in, and keep that window open.';
+    };
+    status();
+    POS.views.settings.refreshMessenger = status;
+    f('m-save').onclick = async () => {
+      s.msgUrl = f('m-url').value.trim() || POS.messenger.DEFAULT_URL;
+      s.msgToken = f('m-token').value.trim();
+      if (!s.msgToken) s.msgPageName = '';
+      await save();
+      POS.messenger.refreshNow();
+    };
+    f('m-test').onclick = async () => {
+      const tok = f('m-token').value.trim();
+      if (!tok) return U.toast('Paste a Page access token first (or just use the Messenger window)', 'warn');
+      f('m-status').textContent = 'Testing...';
+      try {
+        const r = await POS.messenger.test(tok);
+        s.msgPageName = r.name;
+        f('m-status').innerHTML = 'Token works: Page <b>' + U.esc(r.name) + '</b>, ' + r.chats + ' unread chat' + (r.chats === 1 ? '' : 's') + '. Press Save.';
+      } catch (e) { f('m-status').innerHTML = '<span style="color:#8c2a20">Token test failed: ' + U.esc(e.message || String(e)) + '</span>'; }
+    };
+    f('m-open').onclick = () => POS.messenger.open();
   }
 
   /* ---------- backup ---------- */

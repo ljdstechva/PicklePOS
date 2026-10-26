@@ -195,12 +195,32 @@ BACKUPS - PLEASE READ
 
 
 ---------------------------------------------------------------------
+MESSENGER AT THE COUNTER
+---------------------------------------------------------------------
+  Bookings and payments often arrive by Facebook Messenger, so the
+  side bar has a "Messenger" button with the number of unread chats.
+    1. Press "Messenger". Your inbox opens in its own window. Log in
+       there once and keep that window open (it may stay behind the
+       POS). The number on the button follows the "(3)" that Facebook
+       shows in the window title. A sound plays when new chats arrive.
+    2. Settings > Messenger (owner): choose which inbox the button
+       opens - www.messenger.com (personal or Page chats) or the Page
+       inbox in Meta Business Suite
+       (https://business.facebook.com/latest/inbox/all).
+    3. Optional, for an exact count straight from Facebook: paste a
+       Page access token in Settings > Messenger and press Test, then
+       Save. The "How to get a Page access token" steps are shown
+       there (developers.facebook.com > Create App > Messenger product
+       > Generate Token for your Page). The token stays on this laptop.
+
+
+---------------------------------------------------------------------
 ABOUT RECEIPTS & BIR
 ---------------------------------------------------------------------
-  PicklePOS is not a BIR-accredited CAS/POS. Its printouts are
-  "Acknowledgement Receipts - Not an Official Receipt" for the
-  customer's reference. Keep issuing BIR-registered invoices/receipts
-  from your booklet when required. You can change the wording in
+  PicklePOS is not a BIR-accredited CAS/POS. Its printouts are titled
+  "Acknowledgement Receipt" for the customer's reference. Keep issuing
+  BIR-registered invoices/receipts from your booklet when required.
+  You can change the title, note and footer in
   Settings > Business & Receipt.
 
 
@@ -251,10 +271,12 @@ AUTOMATIC UPDATES
   When the laptop has internet, PicklePOS also checks GitHub for a new
   version by itself (a few seconds after opening, then every 3 hours)
   and downloads it quietly in the background.
-    - A dark bar appears: "PicklePOS x.y.z is ready". Press
-      "Restart Now" (finish the current order first) - the window
-      closes and opens again with the new version. Or press "Later";
-      it installs the next time PicklePOS is opened.
+    - When one is downloaded, the Update button shows a red "1",
+      reads "Install update" and a short message appears. Press it
+      (finish the current order first) - the window closes and opens
+      again with the new version. The dark bar at the top offers the
+      same ("Restart Now") or "Later"; it then installs the next time
+      PicklePOS is opened.
     - Your sales, menu, photos and settings are kept (the "data"
       folder is never changed by an update).
     - Settings > About & Updates shows the version and lets the
