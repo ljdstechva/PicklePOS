@@ -196,7 +196,10 @@
   function drawDisplay() {
     const s = S.settings;
     f('st-display').innerHTML =
-      '<label class="chk switch"><input type="checkbox" id="d-anim"><span class="sw"></span> Animations &amp; shadows <span class="muted small">(off = lighter and quicker on older laptops)</span></label>' +
+      '<label class="f">Animations &amp; shadows<select id="d-anim">' +
+      '<option value="auto">Auto: on, switched off by themselves when the laptop lags (recommended)</option>' +
+      '<option value="on">Always on</option><option value="off">Always off (lightest)</option></select></label>' +
+      '<p class="muted small" id="d-anim-note"></p>' +
       '<label class="chk switch"><input type="checkbox" id="d-snd"><span class="sw"></span> Sounds <span class="muted small">(item added, sale complete, court time alerts)</span></label>' +
       '<div class="row2"><label class="f">Lock the POS automatically after<select id="d-lock">' +
       [[0, 'Never'], [5, '5 minutes'], [10, '10 minutes'], [15, '15 minutes'], [30, '30 minutes']].map((x) =>
@@ -205,10 +208,29 @@
       '<p class="muted small">Locking keeps the order on screen; the next person just logs in with their PIN.<br>' +
       'Keyboard shortcuts on the Sell screen: <kbd>F2</kbd> search, <kbd>F4</kbd> court time, <kbd>F8</kbd> save tab, <kbd>F9</kbd> pay, ' +
       '<kbd>Enter</kbd> confirm, <kbd>Esc</kbd> close.</p>';
-    f('d-anim').checked = s.anim !== false;
+    f('d-anim').value = POS.animMode();
     f('d-snd').checked = !!s.sounds;
     f('d-lock').value = String(s.autoLock || 0);
-    f('d-anim').onchange = async () => { s.anim = f('d-anim').checked; POS.applyDisplay(); await save(s.anim ? 'Animations on' : 'Animations off'); };
+    const animNote = () => {
+      const n = f('d-anim-note');
+      if (!n) return;
+      const m = POS.animMode();
+      if (m === 'on') n.innerHTML = 'Always on, even when the laptop is busy.';
+      else if (m === 'off') n.innerHTML = 'Off: the lightest setting.';
+      else if (POS.autoLite()) n.innerHTML = 'Off right now: the laptop was lagging at ' + U.esc(U.fmtDT(s.autoLiteAt || Date.now())) + '. They come back by themselves tomorrow. <button class="btn sm" id="d-anim-try">Turn on again now</button>';
+      else n.innerHTML = 'On right now. If the laptop starts to lag, they switch off by themselves for a day and this line says so.';
+      const t = f('d-anim-try');
+      if (t) t.onclick = async () => { await POS.lagReset(); animNote(); U.toast('Animations and shadows are on again', 'ok'); };
+    };
+    animNote();
+    f('d-anim').onchange = async () => {
+      s.animMode = f('d-anim').value;
+      s.anim = s.animMode !== 'off';
+      if (s.animMode !== 'auto') { s.autoLiteUntil = 0; s.autoLiteAt = 0; }
+      POS.applyDisplay();
+      animNote();
+      await save(s.animMode === 'on' ? 'Animations always on' : s.animMode === 'off' ? 'Animations off' : 'Animations on, with automatic lag protection');
+    };
     f('d-snd').onchange = async () => { s.sounds = f('d-snd').checked; if (s.sounds) POS.sound('ok'); await save(s.sounds ? 'Sounds on' : 'Sounds off'); };
     f('d-lock').onchange = async () => { s.autoLock = +f('d-lock').value; await save(); };
     f('d-try').onclick = () => {

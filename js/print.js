@@ -134,6 +134,7 @@
   };
   P.hidePrinting = function (now) {
     clearTimeout(trackTimer);
+    POS.busyUntil = Date.now() + 3000;
     const ov = document.getElementById('print-ov');
     if (!ov) return;
     clearTimeout(ovTimer);
@@ -203,6 +204,7 @@
     d.close();
     const go = () => {
       const t0 = Date.now();
+      POS.busyUntil = Date.now() + 20000;   // printing freezes the page on purpose; not "lag"
       try {
         // tell the launcher a print is coming so it can follow the job in the Windows print queue
         if (POS.signalLauncher && POS.launcherPresent && POS.launcherPresent()) POS.signalLauncher('print:' + t0, 6000);

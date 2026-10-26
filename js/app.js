@@ -27,13 +27,53 @@
   };
 
   /* ---------- display: animations & sounds ---------- */
-  const reduceMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
-  POS.anim = () => !!(S.settings && S.settings.anim !== false) && !(reduceMotion && reduceMotion.matches);
+  // animMode: 'auto' = on, but switched off (for a day) when the laptop is measured to lag;
+  //           'on' = always on; 'off' = always off. The user's choice wins over any OS "reduce motion" hint.
+  POS.animMode = () => { const s = S.settings || {}; if (s.animMode) return s.animMode; return s.anim === false ? 'off' : 'auto'; };
+  POS.autoLite = () => { const s = S.settings || {}; return POS.animMode() === 'auto' && (+s.autoLiteUntil || 0) > Date.now(); };
+  POS.anim = () => { const m = POS.animMode(); return m === 'on' || (m === 'auto' && !POS.autoLite()); };
   // no-anim: no animations/transitions. lite: also no shadows or blur (much less to paint on an old laptop)
   POS.applyDisplay = function () {
     document.documentElement.classList.toggle('no-anim', !POS.anim());
     document.documentElement.classList.toggle('lite', !POS.anim());
   };
+
+  /* ---------- lag watch: in "auto" mode, switch animations off when the laptop struggles ----------
+     Chrome reports "long tasks" (the page frozen for 50 ms or more). Printing freezes the page on
+     purpose, so print.js sets POS.busyUntil and those moments are ignored. Two 10-second windows with
+     1.5 s or more of freezes within a minute = the laptop is lagging. */
+  POS.busyUntil = 0;
+  const lag = { log: [], strikes: [], started: Date.now() };
+  POS.lagWatch = function () {
+    if (!window.PerformanceObserver) return;
+    try {
+      const po = new PerformanceObserver((list) => {
+        const now = Date.now();
+        if (now < POS.busyUntil || now - lag.started < 8000) return;
+        list.getEntries().forEach((e) => { if (e.duration >= 50) lag.log.push({ t: now, d: e.duration }); });
+      });
+      po.observe({ entryTypes: ['longtask'] });
+    } catch (e) { return; }
+    setInterval(POS.lagCheck, 2000);
+  };
+  POS.lagCheck = function () {
+    const now = Date.now();
+    lag.log = lag.log.filter((x) => now - x.t < 10000);
+    lag.strikes = lag.strikes.filter((t) => now - t < 60000);
+    if (!S.settings || POS.animMode() !== 'auto' || POS.autoLite() || now < POS.busyUntil) return;
+    const blocked = lag.log.reduce((a, x) => a + x.d, 0);
+    if (blocked >= 1500) { lag.strikes.push(now); lag.log = []; }
+    if (lag.strikes.length >= 2) {
+      lag.strikes = [];
+      S.settings.autoLiteUntil = now + 24 * 3600e3;
+      S.settings.autoLiteAt = now;
+      POS.saveSettings();
+      POS.applyDisplay();
+      U.toast('Animations and shadows are off for today because the laptop was slowing down. Settings > Display & Sounds to change.', 'warn');
+    }
+  };
+  POS.lagSimulate = (ms) => { lag.log.push({ t: Date.now(), d: ms }); };   // used by tests
+  POS.lagReset = async function () { S.settings.autoLiteUntil = 0; S.settings.autoLiteAt = 0; await POS.saveSettings(); POS.applyDisplay(); };
 
   // Short synthesized beeps (no sound files needed). Very quiet by default.
   let audio = null;
@@ -98,8 +138,7 @@
     }
     POS.applyDisplay();
     POS.applyBrand();
-    if (S.liteJustSet) setTimeout(() => U.toast('Animations and shadows are off so the POS stays quick on this laptop. Settings > Display & Sounds to change.', 'warn'), 1500);
-    if (reduceMotion && reduceMotion.addListener) reduceMotion.addListener(POS.applyDisplay);
+    POS.lagWatch();
     setInterval(POS.tick, 1000);
     document.addEventListener('click', POS.touch, true);
     document.addEventListener('keydown', POS.touch, true);
@@ -111,10 +150,11 @@
     S.settings = Object.assign({}, POS.DEFAULTS, kv ? kv.v : {});
     // Receipts no longer carry the "THIS IS NOT AN OFFICIAL RECEIPT" note (since 1.2.0)
     if (S.settings.receiptNote === 'THIS IS NOT AN OFFICIAL RECEIPT') { S.settings.receiptNote = ''; await POS.saveSettings(); }
-    // Once: on a 1-2 core laptop start with animations and shadows off (lighter, quicker). Settings can turn them on.
-    if (!S.settings.liteChecked) {
+    // Animations: "auto" by default (on, switched off by themselves when the laptop lags)
+    if (!S.settings.animMode) {
+      // 'off' only if the owner had switched animations off by hand (not the old automatic lite start)
+      S.settings.animMode = (S.settings.anim === false && !S.settings.liteChecked) ? 'off' : 'auto';
       S.settings.liteChecked = true;
-      if ((navigator.hardwareConcurrency || 4) <= 2 && S.settings.anim !== false) { S.settings.anim = false; S.liteJustSet = true; }
       await POS.saveSettings();
     }
     S.users = await POS.db.all('users');
