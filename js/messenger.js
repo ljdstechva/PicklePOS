@@ -378,7 +378,7 @@
   };
 
   function tick() {
-    if (!POS.state.settings) return;
+    if (!POS.state.settings || !POS.MESSENGER_ENABLED) return;
     const now = Date.now();
     if (now - lastWin >= 4000) { lastWin = now; pollWin(); }
     if (M.connected() && now - lastGraph >= 30000 && !(el && !winTab)) { lastGraph = now; pollGraph().then(M.sync); }

@@ -8,12 +8,12 @@
     render: function (root) {
       el = U.h('<div class="page"><div class="page-head"><h2>Settings</h2></div><div class="settings-grid">' +
         section('Business &amp; Receipt', 'biz') + section('Courts &amp; Rates', 'courts') +
-        section('Printer', 'print') + (POS.isOwner() ? section('Messenger', 'msg') : '') + section('Payments &amp; Tax', 'pay') +
+        section('Printer', 'print') + (POS.isOwner() && POS.MESSENGER_ENABLED ? section('Messenger', 'msg') : '') + section('Payments &amp; Tax', 'pay') +
         (POS.isOwner() ? section('Staff &amp; PINs', 'users') : '') + section('Display &amp; Sounds', 'display') +
         (POS.isOwner() ? section('Backup &amp; Restore', 'backup') : '') + section('About &amp; Updates', 'about') + '</div></div>');
       root.appendChild(el);
       drawBiz(); drawCourts(); drawPrint(); drawPay(); drawDisplay(); drawAbout();
-      if (POS.isOwner()) { drawUsers(); drawBackup(); drawMessenger(); }
+      if (POS.isOwner()) { drawUsers(); drawBackup(); if (POS.MESSENGER_ENABLED) drawMessenger(); }
     },
     refresh: function () { if (el) drawAbout(); },
     destroy: function () { el = null; }

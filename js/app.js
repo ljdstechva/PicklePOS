@@ -5,6 +5,8 @@
   const S = POS.state = { settings: null, users: [], categories: [], items: [], open: [], user: null, view: null };
   POS.views = {};
   POS.VIEW_ORDER = ['sell', 'kitchen', 'tabs', 'courts', 'messenger', 'stock', 'history', 'reports', 'menu', 'settings'];
+  // Messenger is still being set up: the tab stays visible but greyed out until this is true
+  POS.MESSENGER_ENABLED = false;
 
   POS.DEFAULTS = {
     bizName: 'My Pickleball Club', bizLine2: 'Courts & Cafe', address: '', contact: '', tin: '',
@@ -390,7 +392,7 @@
     const app = document.getElementById('app');
     const views = POS.VIEW_ORDER.filter((v) => POS.can(v));
     app.innerHTML = '<aside class="rail"><div class="rail-logo' + (S.settings.appLogo ? ' has-img' : '') + '" id="rail-biz" title="' + U.esc(S.settings.bizName) + '">' + POS.logoHTML() + '</div>' +
-      '<nav class="nav">' + views.map((v) => '<button data-view="' + v + '">' + POS.icon(v) + '<span class="nav-l">' + VIEW_LABELS[v] + '</span>' +
+      '<nav class="nav">' + views.map((v) => '<button data-view="' + v + '"' + (v === 'messenger' && !POS.MESSENGER_ENABLED ? ' class="soon" title="Messenger: coming soon"' : '') + '>' + POS.icon(v) + '<span class="nav-l">' + VIEW_LABELS[v] + '</span>' +
         (v === 'tabs' ? '<span class="badge" id="tabs-badge"></span>' : '') +
         (v === 'kitchen' ? '<span class="badge hot" id="kitchen-badge"></span>' : '') +
         (v === 'courts' ? '<span class="badge" id="courts-badge"></span>' : '') +
@@ -415,6 +417,7 @@
   };
 
   POS.go = function (view) {
+    if (view === 'messenger' && !POS.MESSENGER_ENABLED) return U.toast('Messenger is being set up and will be switched on in a coming update.', '');
     if (!POS.can(view)) return U.toast('You do not have access to ' + VIEW_LABELS[view] + '. Ask the owner.', 'error');
     POS.destroyView();
     S.view = view;

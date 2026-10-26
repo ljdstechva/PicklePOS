@@ -462,6 +462,10 @@ label.inline input { width: auto; }
 .print-ov.sent .p-paper { animation: none; transform: scaleY(1); opacity: 1; }
 .p-check.sent { background: #a86b00; }
 .print-ov.failed .p-text { color: var(--danger); font-size: 14px; max-width: 300px; }
+/* ---------- Messenger tab while it is still being set up ---------- */
+.nav button.soon { opacity: .38; cursor: default; }
+.nav button.soon:hover { background: none; color: var(--muted); }
+
 /* ---------- Messenger tab placeholder (the messenger.com window is snapped over this area) ---------- */
 .msg-page { display: flex; align-items: center; justify-content: center; }
 .msg-hint { text-align: center; max-width: 440px; color: var(--muted); }
