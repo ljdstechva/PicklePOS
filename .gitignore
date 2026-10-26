@@ -9,5 +9,7 @@ messenger-status.js
 messenger-status.js.tmp
 print-status.js
 print-status.js.tmp
+fb-connect.js
+fb-connect.js.tmp
 # Test tool output
 .playwright-mcp/

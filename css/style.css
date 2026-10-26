@@ -468,6 +468,40 @@ label.inline input { width: auto; }
 .msg-hint .ico { width: 48px; height: 48px; color: #0a7cff; }
 .msg-hint h2 { margin: 6px 0 10px; color: var(--ink); }
 
+/* ---------- Messenger: the Page inbox drawn inside the tab (1.4.0) ---------- */
+.msg-inbox { display: grid; grid-template-columns: 300px 1fr; padding: 0; height: 100%; overflow: hidden; }
+.mi-list { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+.mi-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 10px; border-bottom: 1px solid var(--line); }
+.mi-head h2 { margin: 0 auto 0 0; font-size: 20px; font-weight: 800; }
+#mi-convs { overflow: auto; flex: 1; }
+.mi-conv { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; color: var(--ink); font: inherit; }
+.mi-conv:hover { background: var(--soft); }
+.mi-conv.on { background: var(--brand-l); }
+.mi-conv .avatar { width: 38px; height: 38px; font-size: 13px; flex: none; }
+.mi-c-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mi-c-main b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mi-c-main small { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mi-conv.unread .mi-c-main small { color: var(--ink); font-weight: 700; }
+.mi-c-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.mi-c-side small { color: var(--muted); font-size: 11px; }
+.mi-c-side .badge { margin: 0; }
+.mi-chat { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
+.mi-chat-head { padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 15px; }
+.mi-msgs { flex: 1; overflow: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; }
+.mi-msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 72%; }
+.mi-msg.mine { align-self: flex-end; align-items: flex-end; }
+.mi-bubble { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 16px 16px 16px 4px; padding: 8px 12px; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; color: var(--ink); text-decoration: none; }
+.mi-msg.mine .mi-bubble { background: #0a7cff; border-color: #0a7cff; color: #fff; border-radius: 16px 16px 4px 16px; }
+.mi-img { padding: 3px; }
+.mi-img img { max-width: 260px; max-height: 260px; display: block; border-radius: 12px; }
+.mi-msg small { color: var(--muted); font-size: 10.5px; margin: 2px 4px 0; }
+.mi-compose { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel); margin: 0; }
+.mi-compose input { flex: 1; min-width: 0; border: 1px solid var(--field); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 15px; }
+.mi-compose input:disabled { background: var(--soft); }
+.mi-empty { padding: 18px; }
+#mi-note { padding: 0 14px 8px; background: var(--panel); min-height: 18px; }
+@media (max-width: 900px) { .msg-inbox { grid-template-columns: 220px 1fr; } }
+
 /* ---------- lite mode: no shadows or blur anywhere (paired with no-anim) ---------- */
 html.lite *, html.lite *::before, html.lite *::after { box-shadow: none !important; text-shadow: none !important; backdrop-filter: none !important; filter: none !important; }
 html.lite .card, html.lite .modal, html.lite .toast { border-color: var(--line); }

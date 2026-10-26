@@ -28,9 +28,10 @@ $Ready = Join-Path $Upd 'ready'
 $StatusFile = Join-Path $App 'update-status.js'
 $MsgFile = Join-Path $App 'messenger-status.js'
 $PrintFile = Join-Path $App 'print-status.js'
+$FbFile = Join-Path $App 'fb-connect.js'
 $LogFile = Join-Path $Upd 'update-log.txt'
 # Never copied by an update, never backed up: user data and update work folders
-$Skip = @('data', 'test-data', 'updates', 'update-status.js', 'messenger-status.js', 'print-status.js', '.git', '.complete')
+$Skip = @('data', 'test-data', 'updates', 'update-status.js', 'messenger-status.js', 'print-status.js', 'fb-connect.js', '.git', '.complete')
 if (-not (Test-Path $Upd)) { New-Item -ItemType Directory -Path $Upd | Out-Null }
 
 function Log([string]$msg) {
@@ -216,7 +217,36 @@ function Keep-Messenger {
   elseif (-not [PPWindows]::IsIconic($w.Handle)) { [PPWindows]::ShowWindow($w.Handle, 6) | Out-Null }
 }
 function Close-Messenger {
-  try { if ($script:MsgProc -and -not $script:MsgProc.HasExited) { $script:MsgProc.CloseMainWindow() | Out-Null } } catch { }
+  $script:MsgDock = $null
+  try { if ($script:MsgProc -and -not $script:MsgProc.HasExited) { $script:MsgProc.CloseMainWindow() | Out-Null; $script:MsgProc.WaitForExit(2500) | Out-Null } } catch { }
+  try { $w = Find-MsgWindow; if ($w) { Stop-Process -Id $w.Pid -Force -ErrorAction SilentlyContinue } } catch { }
+  $script:MsgProc = $null
+}
+
+# ---- Connecting a Facebook Page: the connect page (shown in the Messenger tab) puts the sign-in result
+#      in its window title as "[pp:fbtoken:...]"; for 5 minutes after "[pp:fbconnect]" it is copied to
+#      fb-connect.js, which the app reads to finish the connection. ----
+$script:FbWatchUntil = [DateTime]::MinValue
+$script:FbLastToken = ''
+function Watch-FbToken {
+  if ((Get-Date) -ge $script:FbWatchUntil) { return }
+  try {
+    foreach ($w in (Get-Windows)) {
+      if ($w.Title -match '\[pp:fbtoken:([^\]\s]+)\]') {
+        $tok = $matches[1]
+        if ($tok -eq $script:FbLastToken) { return }
+        $script:FbLastToken = $tok
+        $ms = [long](((Get-Date).ToUniversalTime() - (New-Object DateTime 1970, 1, 1, 0, 0, 0, 0)).TotalMilliseconds)
+        $js = 'window.POS_FB = {"token":' + (Js $tok) + ',"at":' + $ms + '};'
+        $tmp = $FbFile + '.tmp'
+        [IO.File]::WriteAllText($tmp, $js)
+        if (Test-Path $FbFile) { Remove-Item $FbFile -Force }
+        Move-Item $tmp $FbFile
+        Log 'Facebook sign-in result received'
+        return
+      }
+    }
+  } catch { }
 }
 function Write-MsgStatus {
   $found = $false; $open = $false; $count = 0; $title = ''
@@ -498,7 +528,12 @@ while ($true) {
       }
     } elseif ($last -eq '[pp:msghide]') {
       if ($script:MsgDock) { $script:LastDockKey = ''; try { Hide-Messenger } catch { } }
+    } elseif ($last -eq '[pp:msgclose]') {
+      if ($script:LastDockKey -ne 'closed') { $script:LastDockKey = 'closed'; try { Close-Messenger } catch { } }
+    } elseif ($last -eq '[pp:fbconnect]') {
+      if ($script:LastDockKey -ne 'fbconnect') { $script:LastDockKey = 'fbconnect'; $script:FbWatchUntil = (Get-Date).AddMinutes(5); $script:FbLastToken = ''; try { Close-Messenger } catch { } }
     }
+    try { Watch-FbToken } catch { }
     try { Keep-Messenger } catch { }
     if ($title -match '\[pp:print:(\d+)\]') {
       $sig = [long]$matches[1]

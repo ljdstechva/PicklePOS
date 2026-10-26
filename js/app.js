@@ -20,7 +20,8 @@
     refRequired: true,
     lastBackup: 0,
     anim: true, sounds: true, autoLock: 0,
-    msgUrl: 'https://www.messenger.com/', msgToken: '', msgPageName: ''
+    msgUrl: 'https://www.messenger.com/', msgToken: '', msgPageName: '', msgPageId: '', msgMode: 'auto',
+    msgAppId: '', msgAppSecret: '', msgCfgId: '', msgConnectUrl: 'https://ljdstechva.github.io/PicklePOS/connect.html', msgConnectedAt: 0
   };
 
   /* ---------- display: animations & sounds ---------- */

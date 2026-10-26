@@ -240,53 +240,73 @@
   function drawMessenger() {
     const box = f('st-msg');
     if (!box) return;
-    const s = S.settings;
-    box.innerHTML = '<p class="muted small" style="margin-top:0">The <b>Messenger</b> tab shows your inbox inside the POS and the number of unread chats on the tab. ' +
-      'Log in there once; it stays signed in.</p>' +
-      '<label class="f">Inbox link the tab shows<input id="m-url" type="text" placeholder="https://www.messenger.com/"></label>' +
-      '<p class="muted small">Personal or Page chats: <code>https://www.messenger.com/</code> &middot; Page inbox in Meta Business Suite: ' +
-      '<code>https://business.facebook.com/latest/inbox/all</code></p>' +
-      '<label class="f">Facebook Page access token (optional, gives the exact unread count)<input id="m-token" type="password" autocomplete="off" placeholder="Paste the Page token here"></label>' +
-      '<div class="toolbar"><button class="btn primary" id="m-save">Save</button><button class="btn" id="m-test">Test</button><button class="btn" id="m-open">Open Messenger</button></div>' +
-      '<p class="small" id="m-status"></p>' +
-      '<details class="muted small"><summary>How to get a Page access token</summary><ol>' +
-      '<li>Go to developers.facebook.com &rarr; My Apps &rarr; Create App (type: Business), any name.</li>' +
-      '<li>In the app add the <b>Messenger</b> product. Under Messenger &rarr; Settings &rarr; Access Tokens, connect your Page and press <b>Generate Token</b> ' +
-      '(permissions: pages_messaging, pages_manage_metadata, pages_read_engagement).</li>' +
-      '<li>Paste the token above, press Test, then Save. The token is stored only on this laptop.</li>' +
-      '<li>Without a token PicklePOS still shows the count from the Messenger window title.</li></ol></details>';
+    const s = S.settings, M = POS.messenger;
+    const connected = M.connected();
+    const connectUrl = (s.msgConnectUrl || M.DEFAULT_CONNECT);
+    box.innerHTML =
+      '<p class="small" id="m-status" style="margin-top:0"></p>' +
+      '<div class="f-label">What the Messenger tab shows</div>' +
+      '<label class="chk"><input type="radio" name="m-mode" value="auto" id="m-mode-page"' + (connected ? '' : ' disabled') + '> Your Facebook Page inbox inside the POS: chats, replies, photos (needs the connection below)</label>' +
+      '<label class="chk"><input type="radio" name="m-mode" value="window" id="m-mode-window"> The messenger.com window snapped into the tab (no setup; personal or Page chats)</label>' +
+      '<label class="f">Window mode: inbox link<input id="m-url" type="text" placeholder="https://www.messenger.com/"></label>' +
+      '<div class="f-label" style="margin-top:14px">Facebook Page connection</div>' +
+      '<div class="row2"><label class="f">Facebook App ID<input id="m-app" type="text" autocomplete="off" placeholder="from developers.facebook.com"></label>' +
+      '<label class="f">App Secret (makes the connection permanent)<input id="m-secret" type="password" autocomplete="off"></label></div>' +
+      '<label class="f">Login configuration ID (only if the app uses "Facebook Login for Business")<input id="m-cfg" type="text" autocomplete="off"></label>' +
+      '<div class="toolbar"><button class="btn primary" id="m-connect">' + (connected ? 'Reconnect Facebook Page' : 'Connect Facebook Page') + '</button>' +
+      (connected ? '<button class="btn" id="m-disc">Disconnect</button><button class="btn" id="m-test">Test</button>' : '') +
+      '<button class="btn" id="m-save">Save</button></div>' +
+      '<details class="muted small"><summary>Connection did not come back by itself? Paste the connection code</summary>' +
+      '<label class="f">Connection code from the connect page<input id="m-code" type="password" autocomplete="off"></label><button class="btn sm" id="m-usecode">Use code</button></details>' +
+      '<details class="muted small"><summary>One-time setup of the Facebook app (PicklePOS owner)</summary><ol>' +
+      '<li>developers.facebook.com &rarr; My Apps &rarr; Create App &rarr; type <b>Business</b>. Add the products <b>Messenger</b> and <b>Facebook Login</b>.</li>' +
+      '<li>App settings &rarr; Basic: copy the <b>App ID</b> and <b>App Secret</b> into the fields above and Save. Add the connect page\'s domain under "App Domains".</li>' +
+      '<li>Facebook Login &rarr; Settings: add <code>' + U.esc(connectUrl) + '</code> to "Valid OAuth Redirect URIs", and its domain to "Allowed Domains for the JavaScript SDK".</li>' +
+      '<li>While the app is in Development mode the connection works for the app\'s admins, developers and testers only. For real customers, submit App Review for ' +
+      'pages_messaging, pages_manage_metadata and pages_read_engagement (needs Business Verification).</li>' +
+      '<li>Advanced: a Page access token from the Graph API Explorer can be pasted as the connection code.</li></ol></details>';
     f('m-url').value = s.msgUrl || '';
-    f('m-token').value = s.msgToken || '';
+    f('m-app').value = s.msgAppId || '';
+    f('m-secret').value = s.msgAppSecret || '';
+    f('m-cfg').value = s.msgCfgId || '';
+    (f(s.msgMode === 'window' || !connected ? 'm-mode-window' : 'm-mode-page') || {}).checked = true;
     const status = () => {
       const el2 = f('m-status');
       if (!el2) return;
-      const st = POS.messenger.state();
+      const st = M.state();
       const chats = (n) => '<b>' + n + '</b> unread chat' + (n === 1 ? '' : 's');
-      el2.innerHTML = st.source === 'page' ? ('Connected to Page <b>' + U.esc(s.msgPageName || '') + '</b>' +
-          (st.error ? ' &middot; <span class="muted">' + U.esc(st.error) + '</span>' : (st.count === null ? ' &middot; checking...' : ' &middot; ' + chats(st.count)))) :
-        st.source === 'window' ? ('Reading the Messenger window: ' + chats(st.count)) :
-        'No Page token set; the count comes from the Messenger tab once it has been opened and signed in.';
+      if (M.connecting()) { el2.innerHTML = '<span class="update-box ready" style="display:inline-block">Waiting for the Facebook sign-in in the Messenger tab... <button class="btn sm" id="m-cancel">Cancel</button></span>'; const c = f('m-cancel'); if (c) c.onclick = () => { M.cancelConnect(); status(); }; return; }
+      el2.innerHTML = M.connected() ?
+        ('<span class="update-box ok" style="display:inline-block">Connected to Page <b>' + U.esc(s.msgPageName || '') + '</b>' + (s.msgConnectedAt ? ' since ' + U.esc(U.fmtDT(s.msgConnectedAt)) : '') +
+          (st.error ? ' &middot; ' + U.esc(st.error) : (st.count === null ? ' &middot; checking...' : ' &middot; ' + chats(st.count))) + '</span>') :
+        ('<span class="update-box" style="display:inline-block">Not connected to a Facebook Page' + (st.source === 'window' ? ' &middot; reading the Messenger window: ' + chats(st.count) : '') + '</span>');
     };
     status();
-    POS.views.settings.refreshMessenger = status;
-    f('m-save').onclick = async () => {
-      s.msgUrl = f('m-url').value.trim() || POS.messenger.DEFAULT_URL;
-      s.msgToken = f('m-token').value.trim();
-      if (!s.msgToken) s.msgPageName = '';
-      await save();
-      POS.messenger.refreshNow();
+    POS.views.settings.refreshMessenger = (redraw) => { if (redraw) drawMessenger(); else status(); };
+    const readFields = () => {
+      s.msgUrl = f('m-url').value.trim() || M.DEFAULT_URL;
+      s.msgAppId = f('m-app').value.trim();
+      s.msgAppSecret = f('m-secret').value.trim();
+      s.msgCfgId = f('m-cfg').value.trim();
+      const mode = (U.$('input[name=m-mode]:checked', box) || {}).value || 'auto';
+      s.msgMode = mode;
     };
-    f('m-test').onclick = async () => {
-      const tok = f('m-token').value.trim();
-      if (!tok) return U.toast('Paste a Page access token first (or just use the Messenger window)', 'warn');
+    U.$$('input[name=m-mode]', box).forEach((r) => { r.onchange = async () => { readFields(); await save(s.msgMode === 'window' ? 'Messenger tab shows the messenger.com window' : 'Messenger tab shows your Page inbox'); }; });
+    f('m-save').onclick = async () => { readFields(); await save(); M.refreshNow(); };
+    f('m-connect').onclick = async () => { readFields(); await POS.saveSettings(); M.connect(); status(); };
+    if (f('m-disc')) f('m-disc').onclick = async () => { if (await U.confirm('Disconnect the Facebook Page "' + (s.msgPageName || '') + '"? The Messenger tab goes back to the messenger.com window.', 'Disconnect')) { await M.disconnect(); drawMessenger(); } };
+    if (f('m-test')) f('m-test').onclick = async () => {
       f('m-status').textContent = 'Testing...';
-      try {
-        const r = await POS.messenger.test(tok);
-        s.msgPageName = r.name;
-        f('m-status').innerHTML = 'Token works: Page <b>' + U.esc(r.name) + '</b>, ' + r.chats + ' unread chat' + (r.chats === 1 ? '' : 's') + '. Press Save.';
-      } catch (e) { f('m-status').innerHTML = '<span style="color:#8c2a20">Token test failed: ' + U.esc(e.message || String(e)) + '</span>'; }
+      try { const r = await M.test(s.msgToken); f('m-status').innerHTML = '<span class="update-box ok" style="display:inline-block">Connection works: Page <b>' + U.esc(r.name) + '</b>, ' + r.chats + ' unread chat' + (r.chats === 1 ? '' : 's') + '</span>'; }
+      catch (e) { f('m-status').innerHTML = '<span class="update-box warn" style="display:inline-block">Connection test failed: ' + U.esc(e.message || String(e)) + '</span>'; }
     };
-    f('m-open').onclick = () => POS.messenger.open();
+    f('m-usecode').onclick = async () => {
+      const code = f('m-code').value.trim();
+      if (!code) return U.toast('Paste the connection code first', 'warn');
+      readFields(); await POS.saveSettings();
+      f('m-code').value = '';
+      await M.finishConnect(code);
+    };
   }
 
   /* ---------- backup ---------- */

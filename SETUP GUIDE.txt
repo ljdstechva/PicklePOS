@@ -199,19 +199,32 @@ MESSENGER AT THE COUNTER
 ---------------------------------------------------------------------
   Bookings and payments often arrive by Facebook Messenger, so the
   side bar has a "Messenger" tab with the number of unread chats.
-    1. Press the "Messenger" tab. Your inbox (messenger.com, chats on
-       the left, conversation on the right) fills the tab area inside
-       the POS. Log in there once; it stays signed in. Switch to any
-       other tab and it goes away; come back and it is there again.
-       The number on the tab follows the "(3)" that Facebook shows in
-       the window title, and a sound plays when new chats arrive.
-       Technical note: Facebook does not allow its site to be shown
-       inside another page, so the tab area is covered by a real
-       messenger.com window that PicklePOS keeps snapped in place.
-    2. Settings > Messenger (owner): choose which inbox the tab shows
-       - www.messenger.com (personal or Page chats) or the Page inbox
-       in Meta Business Suite
-       (https://business.facebook.com/latest/inbox/all).
+  The tab can work in two ways (Settings > Messenger, owner):
+
+  A. YOUR PAGE INBOX INSIDE THE POS (recommended)
+     PicklePOS itself shows your Facebook Page's chats: the list on
+     the left, the conversation on the right, replies and photos.
+     One-time connection: Settings > Messenger > "Connect Facebook
+     Page". A sign-in page appears in the Messenger tab; sign in with
+     the account that manages the Page, choose the Page, done.
+     (The PicklePOS owner first creates a Facebook app once - the
+     steps are listed under Settings > Messenger. Until Facebook
+     approves the app, the connection works for the app's admins and
+     testers only.)
+     Facebook's rule: a Page may reply freely within 24 hours of the
+     customer's last message.
+
+  B. THE MESSENGER.COM WINDOW IN THE TAB (no setup)
+     The tab area is covered by a real messenger.com window that
+     PicklePOS keeps snapped in place (Facebook does not allow its
+     site inside another page). Log in once; it stays signed in.
+     Switch to another tab and it goes away; come back and it is
+     there again. Choose www.messenger.com (personal or Page chats)
+     or the Page inbox in Meta Business Suite
+     (https://business.facebook.com/latest/inbox/all).
+
+  Either way the number on the tab is the unread chats, and a sound
+  plays when new chats arrive.
     3. Optional, for an exact count straight from Facebook: paste a
        Page access token in Settings > Messenger and press Test, then
        Save. The "How to get a Page access token" steps are shown

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect your Facebook Page</title>
+<style>
+  body { margin: 0; background: #f2f4f1; font-family: -apple-system, "Segoe UI", Arial, sans-serif; color: #1b2420; }
+  .card { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 18px; padding: 28px 30px; box-shadow: 0 10px 30px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; margin: 0 0 10px; }
+  p { line-height: 1.5; }
+  .muted { color: #6a756f; } .small { font-size: 13px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 10px 20px; border: 0; border-radius: 14px; background: #1877f2; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn.sm { min-height: 34px; padding: 6px 12px; font-size: 13px; background: #178a4a; }
+  .ok { background: #e5f4eb; color: #106a38; padding: 12px 14px; border-radius: 12px; margin-top: 16px; }
+  .err { background: #fdecea; color: #8c2a20; padding: 12px 14px; border-radius: 12px; margin-top: 16px; }
+  textarea { width: 100%; height: 70px; box-sizing: border-box; font-size: 12px; border: 1px solid #d9e0db; border-radius: 10px; padding: 8px; margin: 8px 0; }
+  details { margin-top: 18px; } summary { cursor: pointer; font-weight: 700; }
+  ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Connect your Facebook Page to PicklePOS</h1>
+  <p>Sign in with the Facebook account that manages your business Page. PicklePOS will then show and answer your Page's Messenger chats right at the counter.</p>
+  <button class="btn" id="go" disabled>Continue with Facebook</button>
+  <div id="out"></div>
+  <details id="manual" hidden>
+    <summary>Not picked up by PicklePOS automatically?</summary>
+    <p class="small">Copy this connection code and paste it in PicklePOS &rarr; Settings &rarr; Messenger &rarr; "paste the connection code".</p>
+    <textarea id="tok" readonly></textarea>
+    <button class="btn sm" id="copy">Copy code</button>
+  </details>
+  <p class="muted small" id="foot">This page only passes the sign-in result to PicklePOS on this computer. Nothing is stored here.</p>
+</div>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search);
+  var appId = q.get('app'), cfg = q.get('cfg'), ver = q.get('v') || 'v21.0';
+  var out = document.getElementById('out'), go = document.getElementById('go');
+  function show(html, cls) { out.innerHTML = '<div class="' + (cls || 'ok') + '">' + html + '</div>'; }
+  function esc(s) { return String(s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  if (!appId) { show('Missing app id. Open this page from PicklePOS &rarr; Settings &rarr; Messenger &rarr; "Connect Facebook Page".', 'err'); return; }
+
+  window.fbAsyncInit = function () {
+    FB.init({ appId: appId, cookie: true, xfbml: false, version: ver });
+    go.disabled = false;
+  };
+  var s = document.createElement('script');
+  s.src = 'https://connect.facebook.net/en_US/sdk.js'; s.async = true; s.defer = true;
+  s.onerror = function () { show('Could not load Facebook. Check the internet connection and try again.', 'err'); };
+  document.head.appendChild(s);
+
+  function handOver(token) {
+    // PicklePOS's launcher reads window titles: it picks the code up from here and finishes the connection
+    document.title = '[pp:fbtoken:' + token + ']';
+    setTimeout(function () { document.title = 'Connected - PicklePOS'; }, 15000);
+    document.getElementById('tok').value = token;
+    document.getElementById('manual').hidden = false;
+  }
+
+  go.onclick = function () {
+    go.disabled = true;
+    var opts = cfg ? { config_id: cfg } : { scope: 'pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement' };
+    FB.login(function (r) {
+      if (!r || !r.authResponse || !r.authResponse.accessToken) { go.disabled = false; show('Sign-in was cancelled or no permission was given. Please try again and allow the Page permissions.', 'err'); return; }
+      var token = r.authResponse.accessToken;
+      FB.api('/me/accounts', { fields: 'id,name' }, function (a) {
+        var pages = (a && a.data) || [];
+        if (a && a.error) { show('Signed in, but Facebook said: ' + esc(a.error.message), 'err'); }
+        else if (!pages.length) { show('Signed in, but this account manages no Facebook Page. Sign in with the account that is an admin of the business Page.', 'err'); go.disabled = false; return; }
+        else { show('<b>Signed in.</b> Pages found: ' + pages.map(function (p) { return esc(p.name); }).join(', ') + '.<br>Go back to PicklePOS: it finishes the connection by itself in a few seconds.'); }
+        handOver(token);
+      });
+    }, opts);
+  };
+  document.getElementById('copy').onclick = function () {
+    var t = document.getElementById('tok'); t.select();
+    try { document.execCommand('copy'); this.textContent = 'Copied'; } catch (e) { }
+  };
+})();
+</script>
+</body>
+</html>
